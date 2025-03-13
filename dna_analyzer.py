@@ -20,7 +20,7 @@ import json
 class DNAComplementAnalyzer:
     """DNA序列中自我互补结构分析类"""
     
-    def __init__(self, flank_length: int = 20, window_size: int = 10, min_match: int = 4):
+    def __init__(self, flank_length: int = 20, window_size: int = 10, min_match: int = 4, flank_mode: str = 'both'):
         """
         初始化分析器
         
@@ -28,10 +28,17 @@ class DNAComplementAnalyzer:
         flank_length: flank区域长度
         window_size: 内部序列滑动窗口大小
         min_match: 最小匹配长度
+        flank_mode: flank分析模式，可选值为'both'（两端）、'5p'（仅5'端）或'3p'（仅3'端）
         """
         self.flank_length = flank_length
         self.window_size = window_size
         self.min_match = min_match
+        
+        # 验证flank_mode参数
+        valid_modes = ['both', '5p', '3p']
+        if flank_mode not in valid_modes:
+            raise ValueError(f"Invalid flank_mode: {flank_mode}. Must be one of {valid_modes}")
+        self.flank_mode = flank_mode
     
     def analyze_sequence(self, seq: str) -> Tuple[List[Dict], float]:
         """
@@ -61,17 +68,20 @@ class DNAComplementAnalyzer:
         # 分析自我互补
         results = []
         
-        # 检查5'flank与内部序列的互补性
-        five_prime_results = self._check_complementarity(
-            flank_5, internal_seq, '5p'
-        )
-        results.extend(five_prime_results)
+        # 根据flank_mode决定分析哪一侧的flank
+        if self.flank_mode in ['both', '5p']:
+            # 检查5'flank与内部序列的互补性
+            five_prime_results = self._check_complementarity(
+                flank_5, internal_seq, '5p'
+            )
+            results.extend(five_prime_results)
         
-        # 检查3'flank与内部序列的互补性
-        three_prime_results = self._check_complementarity(
-            flank_3, internal_seq, '3p'
-        )
-        results.extend(three_prime_results)
+        if self.flank_mode in ['both', '3p']:
+            # 检查3'flank与内部序列的互补性
+            three_prime_results = self._check_complementarity(
+                flank_3, internal_seq, '3p'
+            )
+            results.extend(three_prime_results)
         
         # 计算总评分
         total_score = sum(result['score'] for result in results)
@@ -322,13 +332,16 @@ class DNAComplementAnalyzer:
         # 绘制序列框架
         ax.plot([0, seq_length], [0, 0], 'k-', linewidth=2)
         
-        # 标记flank区域
-        ax.fill_between([0, self.flank_length], -0.2, 0.2, color='skyblue', alpha=0.5)
-        ax.fill_between([seq_length-self.flank_length, seq_length], -0.2, 0.2, color='skyblue', alpha=0.5)
+        # 根据flank_mode标记flank区域
+        if self.flank_mode in ['both', '5p']:
+            ax.fill_between([0, self.flank_length], -0.2, 0.2, color='skyblue', alpha=0.5)
+            ax.text(self.flank_length/2, 0.3, "5' Flank", ha='center')
         
-        # 添加文字标签
-        ax.text(self.flank_length/2, 0.3, "5' Flank", ha='center')
-        ax.text(seq_length-self.flank_length/2, 0.3, "3' Flank", ha='center')
+        if self.flank_mode in ['both', '3p']:
+            ax.fill_between([seq_length-self.flank_length, seq_length], -0.2, 0.2, color='skyblue', alpha=0.5)
+            ax.text(seq_length-self.flank_length/2, 0.3, "3' Flank", ha='center')
+        
+        # 添加内部序列标签
         ax.text(self.flank_length + len(internal)/2, 0.3, "Internal Sequence", ha='center')
         
         # 绘制互补区域连接
@@ -370,7 +383,7 @@ class DNAComplementAnalyzer:
         # 设置图表属性
         ax.set_xlim(-5, seq_length+5)
         ax.set_ylim(-4, 1)
-        ax.set_title(title, fontsize=16)
+        ax.set_title(f"{title} (Mode: {self.flank_mode})", fontsize=16)
         ax.set_xlabel('Sequence Position (bp)')
         ax.set_yticks([])
         

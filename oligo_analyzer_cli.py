@@ -140,6 +140,19 @@ class OligoAnalyzerGUI:
         self.min_match_var = tk.IntVar(value=4)
         ttk.Spinbox(params_frame, from_=3, to=15, textvariable=self.min_match_var, width=10).grid(row=2, column=1, padx=5, pady=2)
         
+        # Flank分析模式选择
+        ttk.Label(params_frame, text="Flank分析模式:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        self.flank_mode_var = tk.StringVar(value="both")
+        flank_mode_combo = ttk.Combobox(params_frame, textvariable=self.flank_mode_var, width=10)
+        flank_mode_combo['values'] = ('both', '5p', '3p')
+        flank_mode_combo['state'] = 'readonly'
+        flank_mode_combo.grid(row=3, column=1, padx=5, pady=2)
+        
+        # 添加模式说明
+        mode_frame = ttk.Frame(input_frame)
+        mode_frame.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(mode_frame, text="模式说明: both=两端flank, 5p=仅5'端flank, 3p=仅3'端flank").pack(anchor=tk.W)
+        
         # 按钮区域
         button_frame = ttk.Frame(input_frame)
         button_frame.pack(fill=tk.X, padx=5, pady=10)
@@ -203,6 +216,19 @@ class OligoAnalyzerGUI:
         ttk.Label(params_frame, text="最小匹配:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
         self.comp_min_match_var = tk.IntVar(value=4)
         ttk.Spinbox(params_frame, from_=3, to=15, textvariable=self.comp_min_match_var, width=10).grid(row=2, column=1, padx=5, pady=2)
+        
+        # Flank分析模式选择
+        ttk.Label(params_frame, text="Flank分析模式:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        self.comp_flank_mode_var = tk.StringVar(value="both")
+        comp_flank_mode_combo = ttk.Combobox(params_frame, textvariable=self.comp_flank_mode_var, width=10)
+        comp_flank_mode_combo['values'] = ('both', '5p', '3p')
+        comp_flank_mode_combo['state'] = 'readonly'
+        comp_flank_mode_combo.grid(row=3, column=1, padx=5, pady=2)
+        
+        # 添加模式说明
+        mode_frame = ttk.Frame(input_frame)
+        mode_frame.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(mode_frame, text="模式说明: both=两端flank, 5p=仅5'端flank, 3p=仅3'端flank").pack(anchor=tk.W)
         
         # 输出设置
         output_frame = ttk.Frame(input_frame)
@@ -277,6 +303,7 @@ class OligoAnalyzerGUI:
             self.analyzer.flank_length = self.flank_var.get()
             self.analyzer.window_size = self.window_var.get()
             self.analyzer.min_match = self.min_match_var.get()
+            self.analyzer.flank_mode = self.flank_mode_var.get()
             
             # 分析序列
             self.single_results, self.single_score = self.analyzer.analyze_sequence(sequence)
@@ -296,7 +323,8 @@ class OligoAnalyzerGUI:
         
         # 显示总评分
         self.result_text.insert(tk.END, f"总互补评分: {self.single_score:.2f}\n")
-        self.result_text.insert(tk.END, f"发现 {len(self.single_results)} 个潜在互补区域\n\n")
+        self.result_text.insert(tk.END, f"发现 {len(self.single_results)} 个潜在互补区域\n")
+        self.result_text.insert(tk.END, f"Flank分析模式: {self.analyzer.flank_mode}\n\n")
         
         # 显示详细结果
         for i, result in enumerate(self.single_results):
@@ -400,6 +428,7 @@ class OligoAnalyzerGUI:
             self.analyzer.flank_length = self.comp_flank_var.get()
             self.analyzer.window_size = self.comp_window_var.get()
             self.analyzer.min_match = self.comp_min_match_var.get()
+            self.analyzer.flank_mode = self.comp_flank_mode_var.get()
             
             # 比较两组
             self.comparison_results = self.analyzer.compare_groups(high_eff_seqs, low_eff_seqs)
@@ -428,7 +457,8 @@ class OligoAnalyzerGUI:
         self.comp_result_text.insert(tk.END, "Analysis Results:\n")
         self.comp_result_text.insert(tk.END, f"High Efficiency Group Mean Score: {self.comparison_results['high_efficiency']['mean']:.2f} ± {self.comparison_results['high_efficiency']['std']:.2f}\n")
         self.comp_result_text.insert(tk.END, f"Low Efficiency Group Mean Score: {self.comparison_results['low_efficiency']['mean']:.2f} ± {self.comparison_results['low_efficiency']['std']:.2f}\n")
-        self.comp_result_text.insert(tk.END, f"Score Difference: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n\n")
+        self.comp_result_text.insert(tk.END, f"Score Difference: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n")
+        self.comp_result_text.insert(tk.END, f"Flank Analysis Mode: {self.analyzer.flank_mode}\n\n")
         
         self.comp_result_text.insert(tk.END, f"High Efficiency Group Sample Size: {len(self.comparison_results['high_efficiency']['scores'])}\n")
         self.comp_result_text.insert(tk.END, f"Low Efficiency Group Sample Size: {len(self.comparison_results['low_efficiency']['scores'])}\n\n")
