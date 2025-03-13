@@ -32,17 +32,47 @@ pip install -r requirements.txt
 
 ## 使用方法
 
-本工具提供两种主要功能：
+本工具提供图形用户界面(GUI)和命令行界面两种使用方式，可以进行以下分析：
 
 1. 分析单个DNA序列的自我互补结构
 2. 比较高效率和低效率oligo组的自我互补性差异
+
+### 图形用户界面(GUI)
+
+启动GUI界面：
+
+```bash
+python oligo_analyzer_cli.py
+```
+
+GUI界面包含两个主要标签页：
+
+#### 单序列分析标签页
+
+- 输入DNA序列
+- 设置分析参数：
+  - Flank长度：两端flank区域的长度
+  - 窗口大小：内部序列滑动窗口大小
+  - 最小匹配：最小互补匹配长度
+  - Flank分析模式：选择分析哪一侧的flank（both=两端flank, 5p=仅5'端flank, 3p=仅3'端flank）
+- 点击"分析序列"按钮进行分析
+- 结果区域显示互补评分和可视化图表
+- 可以保存分析结果
+
+#### 组比较分析标签页
+
+- 选择高效率和低效率oligo序列文件
+- 设置分析参数（同单序列分析）
+- 选择结果输出文件（可选）
+- 点击"比较分析"按钮进行分析
+- 结果区域显示两组序列的互补性差异和统计图表
 
 ### 命令行界面
 
 #### 分析单个序列
 
 ```bash
-python oligo_analyzer_cli.py single "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT" --flank 10
+python oligo_analyzer_cli.py single "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT" --flank 10 --mode both
 ```
 
 参数说明：
@@ -51,12 +81,13 @@ python oligo_analyzer_cli.py single "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT" -
 - `--flank`：指定flank区域长度，默认为20
 - `--window`：指定滑动窗口大小，默认为10
 - `--min-match`：指定最小匹配长度，默认为4
+- `--mode`：指定flank分析模式（both, 5p, 3p），默认为both
 - `--output`或`-o`：指定输出图像文件路径（可选）
 
 #### 比较两组序列
 
 ```bash
-python oligo_analyzer_cli.py compare example_data/high_efficiency_oligos.fasta example_data/low_efficiency_oligos.fasta --flank 10 --output results.xlsx --plot comparison.png
+python oligo_analyzer_cli.py compare example_data/high_efficiency_oligos.fasta example_data/low_efficiency_oligos.fasta --flank 10 --mode both --output results.xlsx --plot comparison.png
 ```
 
 参数说明：
@@ -66,6 +97,7 @@ python oligo_analyzer_cli.py compare example_data/high_efficiency_oligos.fasta e
 - `--flank`：指定flank区域长度，默认为20
 - `--window`：指定滑动窗口大小，默认为10
 - `--min-match`：指定最小匹配长度，默认为4
+- `--mode`：指定flank分析模式（both, 5p, 3p），默认为both
 - `--output`或`-o`：指定结果输出文件路径（可选）
 - `--plot`或`-p`：指定比较图表输出文件路径（可选）
 
@@ -83,6 +115,16 @@ python oligo_analyzer_cli.py compare example_data/high_efficiency_oligos.fasta e
 - CSV格式 (.csv)
 - Excel格式 (.xlsx)
 - 图像格式 (.png, .jpg, .pdf, .svg)
+
+## Flank分析模式
+
+本工具提供三种flank分析模式：
+
+1. **both**：同时分析5'端和3'端flank与内部序列的互补性（默认模式）
+2. **5p**：只分析5'端flank与内部序列的互补性
+3. **3p**：只分析3'端flank与内部序列的互补性
+
+这使得研究人员可以更精确地分析特定端部的互补结构，特别是在只关注一侧引物结合位点的情况下。
 
 ## 示例数据
 
@@ -109,7 +151,7 @@ python oligo_analyzer_cli.py compare example_data/high_efficiency_oligos.fasta e
 from dna_analyzer import DNAComplementAnalyzer
 
 # 创建分析器实例
-analyzer = DNAComplementAnalyzer(flank_length=10, window_size=10, min_match=4)
+analyzer = DNAComplementAnalyzer(flank_length=10, window_size=10, min_match=4, flank_mode='both')
 
 # 分析单个序列
 seq = "ACGTACGTACGTATCGATCGATCGATCGATCGATCGATCGATCGACGTACGTACGT"
@@ -131,6 +173,12 @@ analyzer.visualize_structure(seq, results)
 2. **评分系统**：基于匹配长度和数量计算互补性评分
 3. **自由能估算**：简化版计算互补配对的预估自由能
 4. **可视化**：生成直观的图形表示互补结构
+
+## 注意事项
+
+- 关闭GUI窗口时，程序会自动清理资源并完全退出
+- 分析大量序列时可能需要较长时间，请耐心等待
+- 对于非常长的序列，可能需要调整flank长度和窗口大小参数
 
 ## 开发者
 
