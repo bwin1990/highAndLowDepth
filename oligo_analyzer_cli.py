@@ -237,6 +237,19 @@ class OligoAnalyzerGUI:
         comp_flank_mode_combo['state'] = 'readonly'
         comp_flank_mode_combo.grid(row=3, column=1, padx=5, pady=2)
         
+        # 图表类型选择
+        ttk.Label(params_frame, text="图表类型:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+        self.comp_plot_type_var = tk.StringVar(value="boxviolin")
+        comp_plot_type_combo = ttk.Combobox(params_frame, textvariable=self.comp_plot_type_var, width=10)
+        comp_plot_type_combo['values'] = ('boxviolin', 'histogram', 'scatter', 'boxplot', 'violinplot', 'swarmplot', 'stripplot')
+        comp_plot_type_combo['state'] = 'readonly'
+        comp_plot_type_combo.grid(row=4, column=1, padx=5, pady=2)
+        
+        # 添加图表类型说明
+        chart_frame = ttk.Frame(input_frame)
+        chart_frame.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(chart_frame, text="图表类型: boxviolin=箱线图+小提琴图, histogram=直方图, scatter=散点图").pack(anchor=tk.W)
+        
         # 添加模式说明
         mode_frame = ttk.Frame(input_frame)
         mode_frame.pack(fill=tk.X, padx=5, pady=2)
@@ -473,7 +486,8 @@ class OligoAnalyzerGUI:
         self.comp_result_text.insert(tk.END, f"High Efficiency Group Mean Score: {self.comparison_results['high_efficiency']['mean']:.2f} ± {self.comparison_results['high_efficiency']['std']:.2f}\n")
         self.comp_result_text.insert(tk.END, f"Low Efficiency Group Mean Score: {self.comparison_results['low_efficiency']['mean']:.2f} ± {self.comparison_results['low_efficiency']['std']:.2f}\n")
         self.comp_result_text.insert(tk.END, f"Score Difference: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n")
-        self.comp_result_text.insert(tk.END, f"Flank Analysis Mode: {self.analyzer.flank_mode}\n\n")
+        self.comp_result_text.insert(tk.END, f"Flank Analysis Mode: {self.analyzer.flank_mode}\n")
+        self.comp_result_text.insert(tk.END, f"Chart Type: {self.comp_plot_type_var.get()}\n\n")
         
         self.comp_result_text.insert(tk.END, f"High Efficiency Group Sample Size: {len(self.comparison_results['high_efficiency']['scores'])}\n")
         self.comp_result_text.insert(tk.END, f"Low Efficiency Group Sample Size: {len(self.comparison_results['low_efficiency']['scores'])}\n\n")
@@ -491,8 +505,11 @@ class OligoAnalyzerGUI:
         # 创建图形并调用plot_comparison
         plt.figure(figsize=(10, 6))
         
-        # 调用比较分析方法
-        self.analyzer.plot_comparison(self.comparison_results)
+        # 获取选择的图表类型
+        plot_type = self.comp_plot_type_var.get()
+        
+        # 调用比较分析方法，传入图表类型
+        self.analyzer.plot_comparison(self.comparison_results, plot_type=plot_type)
         
         # 将图形嵌入到Tkinter界面
         canvas = FigureCanvasTkAgg(plt.gcf(), master=self.comp_figure_frame)

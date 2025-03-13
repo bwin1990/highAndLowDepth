@@ -15,6 +15,7 @@ from Bio.Seq import Seq
 from Bio import SeqIO
 import os
 import json
+import pandas as pd
 
 
 class DNAComplementAnalyzer:
@@ -259,7 +260,8 @@ class DNAComplementAnalyzer:
     
     def plot_comparison(self, comparison_result: Dict[str, Any], 
                         title: str = 'Comparison of High and Low Efficiency Oligos',
-                        save_path: Optional[str] = None) -> None:
+                        save_path: Optional[str] = None,
+                        plot_type: str = 'boxviolin') -> None:
         """
         可视化比较结果
         
@@ -267,6 +269,14 @@ class DNAComplementAnalyzer:
         comparison_result: 比较结果字典（来自compare_groups方法）
         title: 图表标题
         save_path: 图表保存路径（如果不为None）
+        plot_type: 图表类型，可选值为:
+                  'boxviolin' - 箱线图和小提琴图 (默认)
+                  'histogram' - 直方图
+                  'scatter' - 散点图
+                  'boxplot' - 仅箱线图
+                  'violinplot' - 仅小提琴图
+                  'swarmplot' - 蜂群图
+                  'stripplot' - 条带图
         """
         # 设置样式
         sns.set_style("whitegrid")
@@ -276,19 +286,92 @@ class DNAComplementAnalyzer:
         high_scores = comparison_result['high_efficiency']['scores']
         low_scores = comparison_result['low_efficiency']['scores']
         
-        # 创建箱线图
-        ax = plt.subplot(121)
-        sns.boxplot(data=[high_scores, low_scores], ax=ax)
-        ax.set_xticklabels(['High Efficiency', 'Low Efficiency'])
-        ax.set_ylabel('Self-complementarity Score')
-        ax.set_title('Box Plot Comparison')
-        
-        # 创建小提琴图
-        ax = plt.subplot(122)
-        sns.violinplot(data=[high_scores, low_scores], ax=ax)
-        ax.set_xticklabels(['High Efficiency', 'Low Efficiency'])
-        ax.set_ylabel('Self-complementarity Score')
-        ax.set_title('Distribution Comparison')
+        # 根据plot_type选择不同的图表类型
+        if plot_type == 'boxviolin':
+            # 创建箱线图
+            ax1 = plt.subplot(121)
+            sns.boxplot(data=[high_scores, low_scores], ax=ax1)
+            ax1.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+            ax1.set_ylabel('Self-complementarity Score')
+            ax1.set_title('Box Plot Comparison')
+            
+            # 创建小提琴图
+            ax2 = plt.subplot(122)
+            sns.violinplot(data=[high_scores, low_scores], ax=ax2)
+            ax2.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+            ax2.set_ylabel('Self-complementarity Score')
+            ax2.set_title('Distribution Comparison')
+            
+        elif plot_type == 'histogram':
+            # 创建直方图
+            plt.subplot(111)
+            plt.hist([high_scores, low_scores], bins=15, alpha=0.7, 
+                    label=['High Efficiency', 'Low Efficiency'])
+            plt.xlabel('Self-complementarity Score')
+            plt.ylabel('Frequency')
+            plt.legend()
+            plt.title('Score Distribution Histogram')
+            
+        elif plot_type == 'scatter':
+            # 创建散点图
+            plt.subplot(111)
+            high_x = np.ones(len(high_scores)) * 1
+            low_x = np.ones(len(low_scores)) * 2
+            plt.scatter(high_x, high_scores, alpha=0.7, label='High Efficiency')
+            plt.scatter(low_x, low_scores, alpha=0.7, label='Low Efficiency')
+            plt.xticks([1, 2], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('Self-complementarity Score')
+            plt.legend()
+            plt.title('Score Scatter Plot')
+            
+        elif plot_type == 'boxplot':
+            # 仅箱线图
+            plt.subplot(111)
+            sns.boxplot(data=[high_scores, low_scores])
+            plt.xticks([0, 1], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('Self-complementarity Score')
+            plt.title('Box Plot Comparison')
+            
+        elif plot_type == 'violinplot':
+            # 仅小提琴图
+            plt.subplot(111)
+            sns.violinplot(data=[high_scores, low_scores])
+            plt.xticks([0, 1], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('Self-complementarity Score')
+            plt.title('Violin Plot Comparison')
+            
+        elif plot_type == 'swarmplot':
+            # 蜂群图
+            plt.subplot(111)
+            # 创建DataFrame以便使用seaborn的分类图
+            data = []
+            for score in high_scores:
+                data.append({'Group': 'High Efficiency', 'Score': score})
+            for score in low_scores:
+                data.append({'Group': 'Low Efficiency', 'Score': score})
+            df = pd.DataFrame(data)
+            
+            sns.swarmplot(x='Group', y='Score', data=df)
+            plt.ylabel('Self-complementarity Score')
+            plt.title('Swarm Plot Comparison')
+            
+        elif plot_type == 'stripplot':
+            # 条带图
+            plt.subplot(111)
+            # 创建DataFrame以便使用seaborn的分类图
+            data = []
+            for score in high_scores:
+                data.append({'Group': 'High Efficiency', 'Score': score})
+            for score in low_scores:
+                data.append({'Group': 'Low Efficiency', 'Score': score})
+            df = pd.DataFrame(data)
+            
+            sns.stripplot(x='Group', y='Score', data=df, jitter=True)
+            plt.ylabel('Self-complementarity Score')
+            plt.title('Strip Plot Comparison')
+            
+        else:
+            raise ValueError(f"Unsupported plot type: {plot_type}. Must be one of: 'boxviolin', 'histogram', 'scatter', 'boxplot', 'violinplot', 'swarmplot', 'stripplot'")
         
         # 添加统计信息
         plt.figtext(0.5, 0.01, 
