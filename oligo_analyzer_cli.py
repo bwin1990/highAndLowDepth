@@ -90,6 +90,9 @@ class OligoAnalyzerGUI:
         self.root.geometry("900x700")
         self.root.minsize(800, 600)
         
+        # 添加窗口关闭事件处理
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
         # 创建分析器实例
         self.analyzer = DNAComplementAnalyzer()
         
@@ -112,6 +115,15 @@ class OligoAnalyzerGUI:
         self.status_var.set("就绪")
         self.status_bar = ttk.Label(root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+    def _on_closing(self):
+        """处理窗口关闭事件"""
+        # 清理资源
+        plt.close('all')  # 关闭所有matplotlib图形
+        
+        # 销毁根窗口并退出程序
+        self.root.destroy()
+        self.root.quit()  # 确保退出主循环
         
     def _setup_single_analysis_tab(self):
         """设置单序列分析标签页"""
@@ -342,6 +354,9 @@ class OligoAnalyzerGUI:
         for widget in self.figure_frame.winfo_children():
             widget.destroy()
             
+        # 关闭之前的图形
+        plt.close('all')
+        
         fig = plt.figure(figsize=(6, 4))
         self.analyzer.visualize_structure(sequence, self.single_results)
         
@@ -470,6 +485,9 @@ class OligoAnalyzerGUI:
         for widget in self.comp_figure_frame.winfo_children():
             widget.destroy()
             
+        # 关闭之前的图形
+        plt.close('all')
+        
         # 创建图形并调用plot_comparison
         plt.figure(figsize=(10, 6))
         
@@ -488,8 +506,12 @@ class OligoAnalyzerGUI:
         self.output_path_var.set("")
         self.comp_result_text.delete(1.0, tk.END)
         
+        # 清除图形区域
         for widget in self.comp_figure_frame.winfo_children():
             widget.destroy()
+            
+        # 关闭所有图形
+        plt.close('all')
             
         self.comparison_results = None
         self.status_var.set("就绪")
@@ -613,9 +635,24 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
 
 
 def main():
-    root = tk.Tk()
-    app = OligoAnalyzerGUI(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app = OligoAnalyzerGUI(root)
+        root.mainloop()
+    except KeyboardInterrupt:
+        print("\n程序被用户中断")
+        # 确保清理资源
+        plt.close('all')
+        if 'root' in locals():
+            root.destroy()
+    except Exception as e:
+        print(f"\n程序发生错误: {e}")
+        # 确保清理资源
+        plt.close('all')
+        if 'root' in locals():
+            root.destroy()
+    finally:
+        print("程序已退出")
 
 
 if __name__ == "__main__":
