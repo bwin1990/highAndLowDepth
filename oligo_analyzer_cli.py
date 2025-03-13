@@ -16,6 +16,10 @@ from dna_analyzer import DNAComplementAnalyzer
 from typing import List, Dict, Any
 import json
 
+# 配置matplotlib支持中文
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'SimSun', 'Arial Unicode MS']
+plt.rcParams['axes.unicode_minus'] = False
+
 class OligoAnalyzerGUI:
     def __init__(self, root):
         self.root = root
