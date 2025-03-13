@@ -425,16 +425,16 @@ class OligoAnalyzerGUI:
         self.comp_result_text.delete(1.0, tk.END)
         
         # 显示结果摘要
-        self.comp_result_text.insert(tk.END, "分析结果:\n")
-        self.comp_result_text.insert(tk.END, f"高效率组平均评分: {self.comparison_results['high_efficiency']['mean']:.2f} ± {self.comparison_results['high_efficiency']['std']:.2f}\n")
-        self.comp_result_text.insert(tk.END, f"低效率组平均评分: {self.comparison_results['low_efficiency']['mean']:.2f} ± {self.comparison_results['low_efficiency']['std']:.2f}\n")
-        self.comp_result_text.insert(tk.END, f"评分差异: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n\n")
+        self.comp_result_text.insert(tk.END, "Analysis Results:\n")
+        self.comp_result_text.insert(tk.END, f"High Efficiency Group Mean Score: {self.comparison_results['high_efficiency']['mean']:.2f} ± {self.comparison_results['high_efficiency']['std']:.2f}\n")
+        self.comp_result_text.insert(tk.END, f"Low Efficiency Group Mean Score: {self.comparison_results['low_efficiency']['mean']:.2f} ± {self.comparison_results['low_efficiency']['std']:.2f}\n")
+        self.comp_result_text.insert(tk.END, f"Score Difference: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n\n")
         
-        self.comp_result_text.insert(tk.END, f"高效率组样本数: {len(self.comparison_results['high_efficiency']['scores'])}\n")
-        self.comp_result_text.insert(tk.END, f"低效率组样本数: {len(self.comparison_results['low_efficiency']['scores'])}\n\n")
+        self.comp_result_text.insert(tk.END, f"High Efficiency Group Sample Size: {len(self.comparison_results['high_efficiency']['scores'])}\n")
+        self.comp_result_text.insert(tk.END, f"Low Efficiency Group Sample Size: {len(self.comparison_results['low_efficiency']['scores'])}\n\n")
         
-        self.comp_result_text.insert(tk.END, "高效率组评分: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['high_efficiency']['scores']]) + "\n\n")
-        self.comp_result_text.insert(tk.END, "低效率组评分: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['low_efficiency']['scores']]) + "\n")
+        self.comp_result_text.insert(tk.END, "High Efficiency Group Scores: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['high_efficiency']['scores']]) + "\n\n")
+        self.comp_result_text.insert(tk.END, "Low Efficiency Group Scores: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['low_efficiency']['scores']]) + "\n")
         
         # 显示可视化
         for widget in self.comp_figure_frame.winfo_children():
@@ -442,13 +442,6 @@ class OligoAnalyzerGUI:
             
         # 创建图形并调用plot_comparison
         plt.figure(figsize=(10, 6))
-        
-        # 确保使用正确的字体
-        if platform.system() == 'Windows':
-            font_path = 'C:/Windows/Fonts/msyh.ttc'  # 微软雅黑字体路径
-            if os.path.exists(font_path):
-                font_prop = fm.FontProperties(fname=font_path)
-                plt.rc('font', family=font_prop.get_name())
         
         # 调用比较分析方法
         self.analyzer.plot_comparison(self.comparison_results)
@@ -520,7 +513,7 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
         # 高效率组
         for i, score in enumerate(results['high_efficiency']['scores']):
             rows.append({
-                'Group': '高效率oligo',
+                'Group': 'High Efficiency Oligo',
                 'Index': i + 1,
                 'Score': score,
                 'Mean_Group_Score': results['high_efficiency']['mean'],
@@ -530,7 +523,7 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
         # 低效率组
         for i, score in enumerate(results['low_efficiency']['scores']):
             rows.append({
-                'Group': '低效率oligo',
+                'Group': 'Low Efficiency Oligo',
                 'Index': i + 1,
                 'Score': score,
                 'Mean_Group_Score': results['low_efficiency']['mean'],
@@ -547,7 +540,7 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
         
         # 摘要表
         summary_data = {
-            'Group': ['高效率oligos', '低效率oligos'],
+            'Group': ['High Efficiency Oligos', 'Low Efficiency Oligos'],
             'Mean Score': [results['high_efficiency']['mean'], results['low_efficiency']['mean']],
             'Std Dev': [results['high_efficiency']['std'], results['low_efficiency']['std']],
             'Sample Size': [len(results['high_efficiency']['scores']), len(results['low_efficiency']['scores'])]
@@ -557,8 +550,8 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
         
         # 详细分数表
         scores_data = {
-            '高效率oligo分数': pd.Series(results['high_efficiency']['scores']),
-            '低效率oligo分数': pd.Series(results['low_efficiency']['scores'])
+            'High Efficiency Oligo Scores': pd.Series(results['high_efficiency']['scores']),
+            'Low Efficiency Oligo Scores': pd.Series(results['low_efficiency']['scores'])
         }
         scores_df = pd.DataFrame(scores_data)
         scores_df.to_excel(writer, sheet_name='Scores', index=True)
@@ -569,24 +562,24 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
     else:
         # 默认保存为文本报告
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write("DNA自我互补结构分析报告\n")
+            f.write("DNA Self-complementary Structure Analysis Report\n")
             f.write("=" * 50 + "\n\n")
             
-            f.write("高效率oligos组:\n")
-            f.write(f"  样本数: {len(results['high_efficiency']['scores'])}\n")
-            f.write(f"  平均评分: {results['high_efficiency']['mean']:.2f} ± {results['high_efficiency']['std']:.2f}\n\n")
+            f.write("High Efficiency Oligos Group:\n")
+            f.write(f"  Sample Size: {len(results['high_efficiency']['scores'])}\n")
+            f.write(f"  Mean Score: {results['high_efficiency']['mean']:.2f} ± {results['high_efficiency']['std']:.2f}\n\n")
             
-            f.write("低效率oligos组:\n")
-            f.write(f"  样本数: {len(results['low_efficiency']['scores'])}\n")
-            f.write(f"  平均评分: {results['low_efficiency']['mean']:.2f} ± {results['low_efficiency']['std']:.2f}\n\n")
+            f.write("Low Efficiency Oligos Group:\n")
+            f.write(f"  Sample Size: {len(results['low_efficiency']['scores'])}\n")
+            f.write(f"  Mean Score: {results['low_efficiency']['mean']:.2f} ± {results['low_efficiency']['std']:.2f}\n\n")
             
-            f.write("差异分析:\n")
-            f.write(f"  评分差异: {results['difference']['mean_diff']:.2f}\n")
-            f.write(f"  百分比差异: {results['difference']['percent_diff']:.2f}%\n\n")
+            f.write("Difference Analysis:\n")
+            f.write(f"  Score Difference: {results['difference']['mean_diff']:.2f}\n")
+            f.write(f"  Percent Difference: {results['difference']['percent_diff']:.2f}%\n\n")
             
-            f.write("详细评分:\n")
-            f.write("  高效率oligos: " + ", ".join([f"{score:.2f}" for score in results['high_efficiency']['scores']]) + "\n")
-            f.write("  低效率oligos: " + ", ".join([f"{score:.2f}" for score in results['low_efficiency']['scores']]) + "\n")
+            f.write("Detailed Scores:\n")
+            f.write("  High Efficiency Oligos: " + ", ".join([f"{score:.2f}" for score in results['high_efficiency']['scores']]) + "\n")
+            f.write("  Low Efficiency Oligos: " + ", ".join([f"{score:.2f}" for score in results['low_efficiency']['scores']]) + "\n")
 
 
 def main():

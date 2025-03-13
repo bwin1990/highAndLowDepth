@@ -248,7 +248,7 @@ class DNAComplementAnalyzer:
         return comparison_result
     
     def plot_comparison(self, comparison_result: Dict[str, Any], 
-                        title: str = '高效率与低效率oligos的自我互补性比较',
+                        title: str = 'Comparison of High and Low Efficiency Oligos',
                         save_path: Optional[str] = None) -> None:
         """
         可视化比较结果
@@ -266,37 +266,28 @@ class DNAComplementAnalyzer:
         high_scores = comparison_result['high_efficiency']['scores']
         low_scores = comparison_result['low_efficiency']['scores']
         
-        # 尝试获取合适的中文字体
-        font_prop = None
-        for font_name in plt.rcParams['font.sans-serif']:
-            try:
-                font_prop = fm.FontProperties(family=font_name)
-                break
-            except:
-                continue
-        
         # 创建箱线图
         ax = plt.subplot(121)
         sns.boxplot(data=[high_scores, low_scores], ax=ax)
-        ax.set_xticklabels(['高效率oligos', '低效率oligos'], fontproperties=font_prop)
-        ax.set_ylabel('自我互补评分', fontproperties=font_prop)
-        ax.set_title('箱线图比较', fontproperties=font_prop)
+        ax.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+        ax.set_ylabel('Self-complementarity Score')
+        ax.set_title('Box Plot Comparison')
         
         # 创建小提琴图
         ax = plt.subplot(122)
         sns.violinplot(data=[high_scores, low_scores], ax=ax)
-        ax.set_xticklabels(['高效率oligos', '低效率oligos'], fontproperties=font_prop)
-        ax.set_ylabel('自我互补评分', fontproperties=font_prop)
-        ax.set_title('分布比较', fontproperties=font_prop)
+        ax.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+        ax.set_ylabel('Self-complementarity Score')
+        ax.set_title('Distribution Comparison')
         
         # 添加统计信息
         plt.figtext(0.5, 0.01, 
-                   f"高效率平均分: {comparison_result['high_efficiency']['mean']:.2f} ± {comparison_result['high_efficiency']['std']:.2f}\n"
-                   f"低效率平均分: {comparison_result['low_efficiency']['mean']:.2f} ± {comparison_result['low_efficiency']['std']:.2f}\n"
-                   f"差异: {comparison_result['difference']['mean_diff']:.2f} ({comparison_result['difference']['percent_diff']:.1f}%)",
-                   ha='center', fontsize=12, fontproperties=font_prop)
+                   f"High Efficiency Mean: {comparison_result['high_efficiency']['mean']:.2f} ± {comparison_result['high_efficiency']['std']:.2f}\n"
+                   f"Low Efficiency Mean: {comparison_result['low_efficiency']['mean']:.2f} ± {comparison_result['low_efficiency']['std']:.2f}\n"
+                   f"Difference: {comparison_result['difference']['mean_diff']:.2f} ({comparison_result['difference']['percent_diff']:.1f}%)",
+                   ha='center', fontsize=12)
         
-        plt.suptitle(title, fontsize=16, fontproperties=font_prop)
+        plt.suptitle(title, fontsize=16)
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         
         # 保存图表
@@ -304,7 +295,7 @@ class DNAComplementAnalyzer:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
     
     def visualize_structure(self, seq: str, results: List[Dict], 
-                           title: str = 'DNA序列自我互补结构', 
+                           title: str = 'DNA Sequence Self-complementary Structure', 
                            save_path: Optional[str] = None) -> None:
         """
         可视化DNA序列中的自我互补结构
@@ -316,7 +307,7 @@ class DNAComplementAnalyzer:
         save_path: 图表保存路径（如果不为None）
         """
         if not results:
-            print("未发现互补结构，无法可视化")
+            print("No complementary structures found, cannot visualize")
             return
         
         # 设置图表
@@ -338,7 +329,7 @@ class DNAComplementAnalyzer:
         # 添加文字标签
         ax.text(self.flank_length/2, 0.3, "5' Flank", ha='center')
         ax.text(seq_length-self.flank_length/2, 0.3, "3' Flank", ha='center')
-        ax.text(self.flank_length + len(internal)/2, 0.3, "内部序列", ha='center')
+        ax.text(self.flank_length + len(internal)/2, 0.3, "Internal Sequence", ha='center')
         
         # 绘制互补区域连接
         colors = plt.cm.tab10(np.linspace(0, 1, min(10, len(results))))
@@ -370,8 +361,8 @@ class DNAComplementAnalyzer:
             # 添加信息标签
             midpoint_x = (start_pos + internal_end) / 2
             ax.text(midpoint_x, -1.5, 
-                   f"匹配{i+1}: {result['match_length']}bp\n"
-                   f"评分: {result['score']:.2f}\n"
+                   f"Match {i+1}: {result['match_length']}bp\n"
+                   f"Score: {result['score']:.2f}\n"
                    f"ΔG: {result['free_energy']:.1f} kcal/mol",
                    ha='center', va='top', 
                    bbox=dict(boxstyle='round', fc='white', ec=color, alpha=0.7))
@@ -380,13 +371,13 @@ class DNAComplementAnalyzer:
         ax.set_xlim(-5, seq_length+5)
         ax.set_ylim(-4, 1)
         ax.set_title(title, fontsize=16)
-        ax.set_xlabel('序列位置 (bp)')
+        ax.set_xlabel('Sequence Position (bp)')
         ax.set_yticks([])
         
         # 添加总结信息
         total_score = sum(result['score'] for result in results)
         plt.figtext(0.5, 0.01, 
-                   f"总评分: {total_score:.2f}   互补区域数量: {len(results)}", 
+                   f"Total Score: {total_score:.2f}   Number of Complementary Regions: {len(results)}", 
                    ha='center', fontsize=12)
         
         plt.tight_layout(rect=[0, 0.03, 1, 0.97])
