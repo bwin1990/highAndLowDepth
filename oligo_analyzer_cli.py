@@ -248,7 +248,7 @@ class OligoAnalyzerGUI:
             widget.destroy()
             
         fig = plt.figure(figsize=(6, 4))
-        self.analyzer.visualize_structure(sequence, self.single_results, fig=fig)
+        self.analyzer.visualize_structure(sequence, self.single_results)
         
         canvas = FigureCanvasTkAgg(fig, master=self.figure_frame)
         canvas.draw()
@@ -292,7 +292,7 @@ class OligoAnalyzerGUI:
             img_filename = os.path.splitext(filename)[0] + ".png"
             fig = plt.figure(figsize=(8, 6))
             sequence = self.sequence_text.get(1.0, tk.END).strip()
-            self.analyzer.visualize_structure(sequence, self.single_results, save_path=img_filename)
+            self.analyzer.visualize_structure(sequence, self.single_results)
             plt.close(fig)
             
             self.status_var.set(f"结果已保存至 {filename}")
