@@ -230,11 +230,43 @@ class DNAComplementAnalyzer:
         high_eff_scores = [result[1] for result in high_eff_results]
         low_eff_scores = [result[1] for result in low_eff_results]
         
-        # 计算统计数据
+        # 计算自由能
+        high_eff_energies = []
+        low_eff_energies = []
+        
+        # 计算高效率组的平均自由能
+        for result in high_eff_results:
+            regions = result[0]
+            if regions:
+                # 计算所有互补区域的平均自由能
+                total_energy = sum(region['free_energy'] for region in regions)
+                avg_energy = total_energy / len(regions) if regions else 0
+                high_eff_energies.append(avg_energy)
+            else:
+                high_eff_energies.append(0)  # 如果没有互补区域，自由能为0
+        
+        # 计算低效率组的平均自由能
+        for result in low_eff_results:
+            regions = result[0]
+            if regions:
+                # 计算所有互补区域的平均自由能
+                total_energy = sum(region['free_energy'] for region in regions)
+                avg_energy = total_energy / len(regions) if regions else 0
+                low_eff_energies.append(avg_energy)
+            else:
+                low_eff_energies.append(0)  # 如果没有互补区域，自由能为0
+        
+        # 计算统计数据 - 互补评分
         high_mean = np.mean(high_eff_scores)
         high_std = np.std(high_eff_scores)
         low_mean = np.mean(low_eff_scores)
         low_std = np.std(low_eff_scores)
+        
+        # 计算统计数据 - 自由能
+        high_energy_mean = np.mean(high_eff_energies)
+        high_energy_std = np.std(high_eff_energies)
+        low_energy_mean = np.mean(low_eff_energies)
+        low_energy_std = np.std(low_eff_energies)
         
         # 统计分析结果
         comparison_result = {
@@ -242,17 +274,25 @@ class DNAComplementAnalyzer:
                 'scores': high_eff_scores,
                 'mean': high_mean,
                 'std': high_std,
+                'energies': high_eff_energies,
+                'energy_mean': high_energy_mean,
+                'energy_std': high_energy_std,
                 'details': high_eff_results
             },
             'low_efficiency': {
                 'scores': low_eff_scores,
                 'mean': low_mean,
                 'std': low_std,
+                'energies': low_eff_energies,
+                'energy_mean': low_energy_mean,
+                'energy_std': low_energy_std,
                 'details': low_eff_results
             },
             'difference': {
                 'mean_diff': low_mean - high_mean,
-                'percent_diff': ((low_mean - high_mean) / high_mean) * 100 if high_mean > 0 else float('inf')
+                'percent_diff': ((low_mean - high_mean) / high_mean) * 100 if high_mean > 0 else float('inf'),
+                'energy_mean_diff': low_energy_mean - high_energy_mean,
+                'energy_percent_diff': ((low_energy_mean - high_energy_mean) / high_energy_mean) * 100 if high_energy_mean != 0 else float('inf')
             }
         }
         
@@ -378,6 +418,135 @@ class DNAComplementAnalyzer:
                    f"High Efficiency Mean: {comparison_result['high_efficiency']['mean']:.2f} ± {comparison_result['high_efficiency']['std']:.2f}\n"
                    f"Low Efficiency Mean: {comparison_result['low_efficiency']['mean']:.2f} ± {comparison_result['low_efficiency']['std']:.2f}\n"
                    f"Difference: {comparison_result['difference']['mean_diff']:.2f} ({comparison_result['difference']['percent_diff']:.1f}%)",
+                   ha='center', fontsize=12)
+        
+        plt.suptitle(title, fontsize=16)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        # 保存图表
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    def plot_energy_comparison(self, comparison_result: Dict[str, Any], 
+                           title: str = 'Free Energy Comparison of High and Low Efficiency Oligos',
+                           save_path: Optional[str] = None,
+                           plot_type: str = 'boxviolin') -> None:
+        """
+        可视化自由能比较结果
+        
+        参数:
+        comparison_result: 比较结果字典（来自compare_groups方法）
+        title: 图表标题
+        save_path: 图表保存路径（如果不为None）
+        plot_type: 图表类型，可选值为:
+                  'boxviolin' - 箱线图和小提琴图 (默认)
+                  'histogram' - 直方图
+                  'scatter' - 散点图
+                  'boxplot' - 仅箱线图
+                  'violinplot' - 仅小提琴图
+                  'swarmplot' - 蜂群图
+                  'stripplot' - 条带图
+        """
+        # 设置样式
+        sns.set_style("whitegrid")
+        plt.figure(figsize=(12, 8))
+        
+        # 准备数据
+        high_energies = comparison_result['high_efficiency']['energies']
+        low_energies = comparison_result['low_efficiency']['energies']
+        
+        # 根据plot_type选择不同的图表类型
+        if plot_type == 'boxviolin':
+            # 创建箱线图
+            ax1 = plt.subplot(121)
+            sns.boxplot(data=[high_energies, low_energies], ax=ax1)
+            ax1.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+            ax1.set_ylabel('Free Energy (kcal/mol)')
+            ax1.set_title('Box Plot Comparison')
+            
+            # 创建小提琴图
+            ax2 = plt.subplot(122)
+            sns.violinplot(data=[high_energies, low_energies], ax=ax2)
+            ax2.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+            ax2.set_ylabel('Free Energy (kcal/mol)')
+            ax2.set_title('Distribution Comparison')
+            
+        elif plot_type == 'histogram':
+            # 创建直方图
+            plt.subplot(111)
+            plt.hist([high_energies, low_energies], bins=15, alpha=0.7, 
+                    label=['High Efficiency', 'Low Efficiency'])
+            plt.xlabel('Free Energy (kcal/mol)')
+            plt.ylabel('Frequency')
+            plt.legend()
+            plt.title('Energy Distribution Histogram')
+            
+        elif plot_type == 'scatter':
+            # 创建散点图
+            plt.subplot(111)
+            high_x = np.ones(len(high_energies)) * 1
+            low_x = np.ones(len(low_energies)) * 2
+            plt.scatter(high_x, high_energies, alpha=0.7, label='High Efficiency')
+            plt.scatter(low_x, low_energies, alpha=0.7, label='Low Efficiency')
+            plt.xticks([1, 2], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('Free Energy (kcal/mol)')
+            plt.legend()
+            plt.title('Energy Scatter Plot')
+            
+        elif plot_type == 'boxplot':
+            # 仅箱线图
+            plt.subplot(111)
+            sns.boxplot(data=[high_energies, low_energies])
+            plt.xticks([0, 1], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('Free Energy (kcal/mol)')
+            plt.title('Box Plot Comparison')
+            
+        elif plot_type == 'violinplot':
+            # 仅小提琴图
+            plt.subplot(111)
+            sns.violinplot(data=[high_energies, low_energies])
+            plt.xticks([0, 1], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('Free Energy (kcal/mol)')
+            plt.title('Violin Plot Comparison')
+            
+        elif plot_type == 'swarmplot':
+            # 蜂群图
+            plt.subplot(111)
+            # 创建DataFrame以便使用seaborn的分类图
+            data = []
+            for energy in high_energies:
+                data.append({'Group': 'High Efficiency', 'Energy': energy})
+            for energy in low_energies:
+                data.append({'Group': 'Low Efficiency', 'Energy': energy})
+            df = pd.DataFrame(data)
+            
+            sns.swarmplot(x='Group', y='Energy', data=df)
+            plt.ylabel('Free Energy (kcal/mol)')
+            plt.title('Swarm Plot Comparison')
+            
+        elif plot_type == 'stripplot':
+            # 条带图
+            plt.subplot(111)
+            # 创建DataFrame以便使用seaborn的分类图
+            data = []
+            for energy in high_energies:
+                data.append({'Group': 'High Efficiency', 'Energy': energy})
+            for energy in low_energies:
+                data.append({'Group': 'Low Efficiency', 'Energy': energy})
+            df = pd.DataFrame(data)
+            
+            sns.stripplot(x='Group', y='Energy', data=df, jitter=True)
+            plt.ylabel('Free Energy (kcal/mol)')
+            plt.title('Strip Plot Comparison')
+            
+        else:
+            raise ValueError(f"Unsupported plot type: {plot_type}. Must be one of: 'boxviolin', 'histogram', 'scatter', 'boxplot', 'violinplot', 'swarmplot', 'stripplot'")
+        
+        # 添加统计信息
+        plt.figtext(0.5, 0.01, 
+                   f"High Efficiency Mean Energy: {comparison_result['high_efficiency']['energy_mean']:.2f} ± {comparison_result['high_efficiency']['energy_std']:.2f} kcal/mol\n"
+                   f"Low Efficiency Mean Energy: {comparison_result['low_efficiency']['energy_mean']:.2f} ± {comparison_result['low_efficiency']['energy_std']:.2f} kcal/mol\n"
+                   f"Energy Difference: {comparison_result['difference']['energy_mean_diff']:.2f} kcal/mol ({comparison_result['difference']['energy_percent_diff']:.1f}%)",
                    ha='center', fontsize=12)
         
         plt.suptitle(title, fontsize=16)

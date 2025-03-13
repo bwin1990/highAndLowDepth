@@ -485,7 +485,13 @@ class OligoAnalyzerGUI:
         self.comp_result_text.insert(tk.END, "Analysis Results:\n")
         self.comp_result_text.insert(tk.END, f"High Efficiency Group Mean Score: {self.comparison_results['high_efficiency']['mean']:.2f} ± {self.comparison_results['high_efficiency']['std']:.2f}\n")
         self.comp_result_text.insert(tk.END, f"Low Efficiency Group Mean Score: {self.comparison_results['low_efficiency']['mean']:.2f} ± {self.comparison_results['low_efficiency']['std']:.2f}\n")
-        self.comp_result_text.insert(tk.END, f"Score Difference: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n")
+        self.comp_result_text.insert(tk.END, f"Score Difference: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n\n")
+        
+        # 显示自由能结果
+        self.comp_result_text.insert(tk.END, f"High Efficiency Group Mean Free Energy: {self.comparison_results['high_efficiency']['energy_mean']:.2f} ± {self.comparison_results['high_efficiency']['energy_std']:.2f} kcal/mol\n")
+        self.comp_result_text.insert(tk.END, f"Low Efficiency Group Mean Free Energy: {self.comparison_results['low_efficiency']['energy_mean']:.2f} ± {self.comparison_results['low_efficiency']['energy_std']:.2f} kcal/mol\n")
+        self.comp_result_text.insert(tk.END, f"Free Energy Difference: {self.comparison_results['difference']['energy_mean_diff']:.2f} kcal/mol ({self.comparison_results['difference']['energy_percent_diff']:.1f}%)\n\n")
+        
         self.comp_result_text.insert(tk.END, f"Flank Analysis Mode: {self.analyzer.flank_mode}\n")
         self.comp_result_text.insert(tk.END, f"Chart Type: {self.comp_plot_type_var.get()}\n\n")
         
@@ -493,7 +499,10 @@ class OligoAnalyzerGUI:
         self.comp_result_text.insert(tk.END, f"Low Efficiency Group Sample Size: {len(self.comparison_results['low_efficiency']['scores'])}\n\n")
         
         self.comp_result_text.insert(tk.END, "High Efficiency Group Scores: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['high_efficiency']['scores']]) + "\n\n")
-        self.comp_result_text.insert(tk.END, "Low Efficiency Group Scores: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['low_efficiency']['scores']]) + "\n")
+        self.comp_result_text.insert(tk.END, "Low Efficiency Group Scores: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['low_efficiency']['scores']]) + "\n\n")
+        
+        self.comp_result_text.insert(tk.END, "High Efficiency Group Free Energies: " + ", ".join([f"{energy:.2f}" for energy in self.comparison_results['high_efficiency']['energies']]) + "\n\n")
+        self.comp_result_text.insert(tk.END, "Low Efficiency Group Free Energies: " + ", ".join([f"{energy:.2f}" for energy in self.comparison_results['low_efficiency']['energies']]) + "\n")
         
         # 显示可视化
         for widget in self.comp_figure_frame.winfo_children():
@@ -502,19 +511,38 @@ class OligoAnalyzerGUI:
         # 关闭之前的图形
         plt.close('all')
         
-        # 创建图形并调用plot_comparison
-        plt.figure(figsize=(10, 6))
+        # 创建标签页控件用于显示不同的图表
+        chart_tabs = ttk.Notebook(self.comp_figure_frame)
+        chart_tabs.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建互补评分图表标签页
+        score_tab = ttk.Frame(chart_tabs)
+        chart_tabs.add(score_tab, text="互补评分比较")
+        
+        # 创建自由能图表标签页
+        energy_tab = ttk.Frame(chart_tabs)
+        chart_tabs.add(energy_tab, text="自由能比较")
         
         # 获取选择的图表类型
         plot_type = self.comp_plot_type_var.get()
         
-        # 调用比较分析方法，传入图表类型
+        # 绘制互补评分比较图表
+        plt.figure(figsize=(10, 6))
         self.analyzer.plot_comparison(self.comparison_results, plot_type=plot_type)
         
-        # 将图形嵌入到Tkinter界面
-        canvas = FigureCanvasTkAgg(plt.gcf(), master=self.comp_figure_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        # 将互补评分图表嵌入到第一个标签页
+        score_canvas = FigureCanvasTkAgg(plt.gcf(), master=score_tab)
+        score_canvas.draw()
+        score_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        # 绘制自由能比较图表
+        plt.figure(figsize=(10, 6))
+        self.analyzer.plot_energy_comparison(self.comparison_results, plot_type=plot_type)
+        
+        # 将自由能图表嵌入到第二个标签页
+        energy_canvas = FigureCanvasTkAgg(plt.gcf(), master=energy_tab)
+        energy_canvas.draw()
+        energy_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         
     def _clear_compare_inputs(self):
         """清除组比较输入"""
@@ -546,9 +574,9 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
         for group_key, group_data in results.items():
             results_json[group_key] = {}
             for data_key, data_value in group_data.items():
-                if data_key == 'scores':
+                if data_key in ['scores', 'energies']:
                     results_json[group_key][data_key] = [float(x) for x in data_value]
-                elif data_key in ['mean', 'std']:
+                elif data_key in ['mean', 'std', 'energy_mean', 'energy_std']:
                     results_json[group_key][data_key] = float(data_value)
                 elif data_key == 'details':
                     # 详细结果需要特殊处理
@@ -580,23 +608,29 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
         rows = []
         
         # 高效率组
-        for i, score in enumerate(results['high_efficiency']['scores']):
+        for i, (score, energy) in enumerate(zip(results['high_efficiency']['scores'], results['high_efficiency']['energies'])):
             rows.append({
                 'Group': 'High Efficiency Oligo',
                 'Index': i + 1,
                 'Score': score,
+                'Free_Energy': energy,
                 'Mean_Group_Score': results['high_efficiency']['mean'],
-                'Std_Group_Score': results['high_efficiency']['std']
+                'Std_Group_Score': results['high_efficiency']['std'],
+                'Mean_Group_Energy': results['high_efficiency']['energy_mean'],
+                'Std_Group_Energy': results['high_efficiency']['energy_std']
             })
         
         # 低效率组
-        for i, score in enumerate(results['low_efficiency']['scores']):
+        for i, (score, energy) in enumerate(zip(results['low_efficiency']['scores'], results['low_efficiency']['energies'])):
             rows.append({
                 'Group': 'Low Efficiency Oligo',
                 'Index': i + 1,
                 'Score': score,
+                'Free_Energy': energy,
                 'Mean_Group_Score': results['low_efficiency']['mean'],
-                'Std_Group_Score': results['low_efficiency']['std']
+                'Std_Group_Score': results['low_efficiency']['std'],
+                'Mean_Group_Energy': results['low_efficiency']['energy_mean'],
+                'Std_Group_Energy': results['low_efficiency']['energy_std']
             })
         
         # 创建DataFrame并保存
@@ -612,6 +646,8 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
             'Group': ['High Efficiency Oligos', 'Low Efficiency Oligos'],
             'Mean Score': [results['high_efficiency']['mean'], results['low_efficiency']['mean']],
             'Std Dev': [results['high_efficiency']['std'], results['low_efficiency']['std']],
+            'Mean Free Energy': [results['high_efficiency']['energy_mean'], results['low_efficiency']['energy_mean']],
+            'Energy Std Dev': [results['high_efficiency']['energy_std'], results['low_efficiency']['energy_std']],
             'Sample Size': [len(results['high_efficiency']['scores']), len(results['low_efficiency']['scores'])]
         }
         summary_df = pd.DataFrame(summary_data)
@@ -620,7 +656,9 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
         # 详细分数表
         scores_data = {
             'High Efficiency Oligo Scores': pd.Series(results['high_efficiency']['scores']),
-            'Low Efficiency Oligo Scores': pd.Series(results['low_efficiency']['scores'])
+            'Low Efficiency Oligo Scores': pd.Series(results['low_efficiency']['scores']),
+            'High Efficiency Oligo Energies': pd.Series(results['high_efficiency']['energies']),
+            'Low Efficiency Oligo Energies': pd.Series(results['low_efficiency']['energies'])
         }
         scores_df = pd.DataFrame(scores_data)
         scores_df.to_excel(writer, sheet_name='Scores', index=True)
@@ -636,19 +674,27 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
             
             f.write("High Efficiency Oligos Group:\n")
             f.write(f"  Sample Size: {len(results['high_efficiency']['scores'])}\n")
-            f.write(f"  Mean Score: {results['high_efficiency']['mean']:.2f} ± {results['high_efficiency']['std']:.2f}\n\n")
+            f.write(f"  Mean Score: {results['high_efficiency']['mean']:.2f} ± {results['high_efficiency']['std']:.2f}\n")
+            f.write(f"  Mean Free Energy: {results['high_efficiency']['energy_mean']:.2f} ± {results['high_efficiency']['energy_std']:.2f} kcal/mol\n\n")
             
             f.write("Low Efficiency Oligos Group:\n")
             f.write(f"  Sample Size: {len(results['low_efficiency']['scores'])}\n")
-            f.write(f"  Mean Score: {results['low_efficiency']['mean']:.2f} ± {results['low_efficiency']['std']:.2f}\n\n")
+            f.write(f"  Mean Score: {results['low_efficiency']['mean']:.2f} ± {results['low_efficiency']['std']:.2f}\n")
+            f.write(f"  Mean Free Energy: {results['low_efficiency']['energy_mean']:.2f} ± {results['low_efficiency']['energy_std']:.2f} kcal/mol\n\n")
             
             f.write("Difference Analysis:\n")
             f.write(f"  Score Difference: {results['difference']['mean_diff']:.2f}\n")
-            f.write(f"  Percent Difference: {results['difference']['percent_diff']:.2f}%\n\n")
+            f.write(f"  Score Percent Difference: {results['difference']['percent_diff']:.2f}%\n")
+            f.write(f"  Free Energy Difference: {results['difference']['energy_mean_diff']:.2f} kcal/mol\n")
+            f.write(f"  Free Energy Percent Difference: {results['difference']['energy_percent_diff']:.2f}%\n\n")
             
             f.write("Detailed Scores:\n")
             f.write("  High Efficiency Oligos: " + ", ".join([f"{score:.2f}" for score in results['high_efficiency']['scores']]) + "\n")
-            f.write("  Low Efficiency Oligos: " + ", ".join([f"{score:.2f}" for score in results['low_efficiency']['scores']]) + "\n")
+            f.write("  Low Efficiency Oligos: " + ", ".join([f"{score:.2f}" for score in results['low_efficiency']['scores']]) + "\n\n")
+            
+            f.write("Detailed Free Energies:\n")
+            f.write("  High Efficiency Oligos: " + ", ".join([f"{energy:.2f}" for energy in results['high_efficiency']['energies']]) + "\n")
+            f.write("  Low Efficiency Oligos: " + ", ".join([f"{energy:.2f}" for energy in results['low_efficiency']['energies']]) + "\n")
 
 
 def main():
