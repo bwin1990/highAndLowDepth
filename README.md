@@ -20,8 +20,8 @@
 1. 克隆或下载此仓库到本地
 
 ```bash
-git clone https://github.com/yourusername/dna-complement-analyzer.git
-cd dna-complement-analyzer
+git clone https://github.com/bwin1990/highAndLowDepth.git
+cd highAndLowDepth
 ```
 
 2. 安装所需依赖项
