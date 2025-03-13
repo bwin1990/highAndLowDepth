@@ -2,19 +2,19 @@
 # -*- coding: utf-8 -*-
 
 """
-DNA自我互补结构分析工具
-用于分析DNA寡核苷酸中flank区域与内部序列之间的自我互补性
+DNA寡核苷酸自我互补结构分析工具 - 核心分析模块
 """
 
 import numpy as np
+from typing import List, Dict, Tuple, Any, Optional
 import matplotlib.pyplot as plt
-import pandas as pd
+import matplotlib.font_manager as fm
 import seaborn as sns
+from Bio.SeqUtils import GC
 from Bio.Seq import Seq
 from Bio import SeqIO
 import os
 import json
-from typing import List, Dict, Tuple, Optional, Union, Any
 
 
 class DNAComplementAnalyzer:
@@ -266,35 +266,42 @@ class DNAComplementAnalyzer:
         high_scores = comparison_result['high_efficiency']['scores']
         low_scores = comparison_result['low_efficiency']['scores']
         
+        # 尝试获取合适的中文字体
+        font_prop = None
+        for font_name in plt.rcParams['font.sans-serif']:
+            try:
+                font_prop = fm.FontProperties(family=font_name)
+                break
+            except:
+                continue
+        
         # 创建箱线图
         ax = plt.subplot(121)
         sns.boxplot(data=[high_scores, low_scores], ax=ax)
-        ax.set_xticklabels(['高效率oligos', '低效率oligos'])
-        ax.set_ylabel('自我互补评分')
-        ax.set_title('箱线图比较')
+        ax.set_xticklabels(['高效率oligos', '低效率oligos'], fontproperties=font_prop)
+        ax.set_ylabel('自我互补评分', fontproperties=font_prop)
+        ax.set_title('箱线图比较', fontproperties=font_prop)
         
         # 创建小提琴图
         ax = plt.subplot(122)
         sns.violinplot(data=[high_scores, low_scores], ax=ax)
-        ax.set_xticklabels(['高效率oligos', '低效率oligos'])
-        ax.set_ylabel('自我互补评分')
-        ax.set_title('分布比较')
+        ax.set_xticklabels(['高效率oligos', '低效率oligos'], fontproperties=font_prop)
+        ax.set_ylabel('自我互补评分', fontproperties=font_prop)
+        ax.set_title('分布比较', fontproperties=font_prop)
         
         # 添加统计信息
         plt.figtext(0.5, 0.01, 
                    f"高效率平均分: {comparison_result['high_efficiency']['mean']:.2f} ± {comparison_result['high_efficiency']['std']:.2f}\n"
                    f"低效率平均分: {comparison_result['low_efficiency']['mean']:.2f} ± {comparison_result['low_efficiency']['std']:.2f}\n"
                    f"差异: {comparison_result['difference']['mean_diff']:.2f} ({comparison_result['difference']['percent_diff']:.1f}%)",
-                   ha='center', fontsize=12)
+                   ha='center', fontsize=12, fontproperties=font_prop)
         
-        plt.suptitle(title, fontsize=16)
+        plt.suptitle(title, fontsize=16, fontproperties=font_prop)
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         
-        # 保存或显示图表
+        # 保存图表
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        else:
-            plt.show()
     
     def visualize_structure(self, seq: str, results: List[Dict], 
                            title: str = 'DNA序列自我互补结构', 

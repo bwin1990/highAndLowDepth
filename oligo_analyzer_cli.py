@@ -15,10 +15,73 @@ import pandas as pd
 from dna_analyzer import DNAComplementAnalyzer
 from typing import List, Dict, Any
 import json
+import platform
+import matplotlib.font_manager as fm
 
 # 配置matplotlib支持中文
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'SimSun', 'Arial Unicode MS']
-plt.rcParams['axes.unicode_minus'] = False
+if platform.system() == 'Windows':
+    # Windows系统字体配置
+    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'SimSun', 'Arial Unicode MS']
+    plt.rcParams['axes.unicode_minus'] = False
+    # 尝试加载微软雅黑字体
+    font_path = 'C:/Windows/Fonts/msyh.ttc'  # 微软雅黑字体路径
+    if os.path.exists(font_path):
+        font_prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = font_prop.get_name()
+else:
+    # 其他系统字体配置
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'WenQuanYi Micro Hei', 'Arial Unicode MS']
+    plt.rcParams['axes.unicode_minus'] = False
+
+
+def read_sequences_from_file(file_path: str) -> List[str]:
+    """从文件中读取DNA序列"""
+    sequences = []
+    
+    # 检查文件扩展名
+    ext = os.path.splitext(file_path)[1].lower()
+    
+    if ext == '.fasta' or ext == '.fa':
+        # 读取FASTA格式
+        with open(file_path, 'r') as f:
+            current_seq = ""
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith('>'):
+                    if current_seq:
+                        sequences.append(current_seq)
+                    current_seq = ""
+                else:
+                    current_seq += line
+            if current_seq:
+                sequences.append(current_seq)
+    
+    elif ext == '.txt':
+        # 每行一个序列
+        with open(file_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    sequences.append(line)
+    
+    elif ext == '.csv':
+        # 试图读取CSV文件，假设第一列是序列
+        df = pd.read_csv(file_path)
+        if len(df.columns) > 0:
+            sequences = df.iloc[:, 0].tolist()
+    
+    elif ext == '.tsv':
+        # 试图读取TSV文件，假设第一列是序列
+        df = pd.read_csv(file_path, sep='\t')
+        if len(df.columns) > 0:
+            sequences = df.iloc[:, 0].tolist()
+    
+    else:
+        raise ValueError(f"不支持的文件格式: {ext}")
+    
+    return sequences
 
 class OligoAnalyzerGUI:
     def __init__(self, root):
@@ -377,10 +440,21 @@ class OligoAnalyzerGUI:
         for widget in self.comp_figure_frame.winfo_children():
             widget.destroy()
             
-        fig = plt.figure(figsize=(6, 4))
-        self.analyzer.plot_comparison(self.comparison_results, fig=fig)
+        # 创建图形并调用plot_comparison
+        plt.figure(figsize=(10, 6))
         
-        canvas = FigureCanvasTkAgg(fig, master=self.comp_figure_frame)
+        # 确保使用正确的字体
+        if platform.system() == 'Windows':
+            font_path = 'C:/Windows/Fonts/msyh.ttc'  # 微软雅黑字体路径
+            if os.path.exists(font_path):
+                font_prop = fm.FontProperties(fname=font_path)
+                plt.rc('font', family=font_prop.get_name())
+        
+        # 调用比较分析方法
+        self.analyzer.plot_comparison(self.comparison_results)
+        
+        # 将图形嵌入到Tkinter界面
+        canvas = FigureCanvasTkAgg(plt.gcf(), master=self.comp_figure_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         
@@ -396,65 +470,6 @@ class OligoAnalyzerGUI:
             
         self.comparison_results = None
         self.status_var.set("就绪")
-
-
-def main():
-    root = tk.Tk()
-    app = OligoAnalyzerGUI(root)
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
-
-def read_sequences_from_file(file_path: str) -> List[str]:
-    """从文件中读取DNA序列"""
-    sequences = []
-    
-    # 检查文件扩展名
-    ext = os.path.splitext(file_path)[1].lower()
-    
-    if ext == '.fasta' or ext == '.fa':
-        # 读取FASTA格式
-        with open(file_path, 'r') as f:
-            current_seq = ""
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                if line.startswith('>'):
-                    if current_seq:
-                        sequences.append(current_seq)
-                    current_seq = ""
-                else:
-                    current_seq += line
-            if current_seq:
-                sequences.append(current_seq)
-    
-    elif ext == '.txt':
-        # 每行一个序列
-        with open(file_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    sequences.append(line)
-    
-    elif ext == '.csv':
-        # 试图读取CSV文件，假设第一列是序列
-        df = pd.read_csv(file_path)
-        if len(df.columns) > 0:
-            sequences = df.iloc[:, 0].tolist()
-    
-    elif ext == '.tsv':
-        # 试图读取TSV文件，假设第一列是序列
-        df = pd.read_csv(file_path, sep='\t')
-        if len(df.columns) > 0:
-            sequences = df.iloc[:, 0].tolist()
-    
-    else:
-        raise ValueError(f"不支持的文件格式: {ext}")
-    
-    return sequences
 
 
 def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
@@ -572,3 +587,13 @@ def save_results_to_file(results: Dict[str, Any], file_path: str) -> None:
             f.write("详细评分:\n")
             f.write("  高效率oligos: " + ", ".join([f"{score:.2f}" for score in results['high_efficiency']['scores']]) + "\n")
             f.write("  低效率oligos: " + ", ".join([f"{score:.2f}" for score in results['low_efficiency']['scores']]) + "\n")
+
+
+def main():
+    root = tk.Tk()
+    app = OligoAnalyzerGUI(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
