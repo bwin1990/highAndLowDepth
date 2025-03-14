@@ -128,8 +128,8 @@ class DNAComplementAnalyzer:
                     
                     # 检查是否存在于反向互补序列中
                     if flank_segment in window_rev_comp:
-                        # 计算匹配评分
-                        match_score = self._calculate_score(k)
+                        # 计算匹配评分，传递序列信息以考虑GC/AT权重
+                        match_score = self._calculate_score(k, flank_segment, window)
                         # 计算自由能
                         free_energy = self.calculate_free_energy(flank_segment, 
                                                                 window[window_rev_comp.find(flank_segment):
@@ -150,24 +150,55 @@ class DNAComplementAnalyzer:
         
         return results
     
-    def _calculate_score(self, match_length: int) -> float:
+    def _calculate_score(self, match_length: int, flank_seq: str = None, internal_seq: str = None) -> float:
         """
-        计算互补匹配的评分
+        计算互补匹配的评分，考虑匹配长度和GC/AT含量
         
         参数:
         match_length: 匹配长度
+        flank_seq: flank区域序列，用于计算GC含量
+        internal_seq: 内部序列，用于计算GC含量
         
         返回:
         评分
         """
         # 基本评分公式: 匹配长度的平方 / 窗口大小
-        # 这样设计使得较长的匹配获得更高的权重
-        score = (match_length ** 2) / self.window_size
-        return score
+        base_score = (match_length ** 2) / self.window_size
+        
+        # 如果提供了序列，则考虑GC/AT权重
+        if flank_seq and internal_seq:
+            # 计算GC和AT配对数量
+            gc_count = 0
+            at_count = 0
+            
+            # 获取internal_seq的互补序列
+            internal_comp = str(Seq(internal_seq).complement())
+            
+            # 找到flank_seq在internal_comp中的位置
+            pos = internal_comp.find(flank_seq)
+            if pos >= 0:
+                # 提取实际配对的部分
+                paired_internal = internal_seq[pos:pos+len(flank_seq)]
+                
+                for i in range(len(flank_seq)):
+                    if i < len(paired_internal):
+                        if self._is_complementary(flank_seq[i], paired_internal[i]):
+                            if flank_seq[i] in 'GC':
+                                gc_count += 1
+                            else:
+                                at_count += 1
+                
+                # 应用GC:AT=3:2的权重
+                weight_factor = (3 * gc_count + 2 * at_count) / (2 * (gc_count + at_count)) if (gc_count + at_count) > 0 else 1.0
+                
+                # 调整基础评分
+                return base_score * weight_factor
+        
+        return base_score
     
     def calculate_free_energy(self, seq1: str, seq2: str) -> float:
         """
-        简化版计算两个序列互补配对的自由能
+        使用最近邻热力学模型计算两个序列互补配对的自由能
         
         参数:
         seq1: 第一个序列
@@ -176,23 +207,84 @@ class DNAComplementAnalyzer:
         返回:
         预估自由能 (kcal/mol)
         """
-        # 计算GC和AT配对数量
-        gc_count = 0
-        at_count = 0
+        # 最近邻热力学参数 (kcal/mol)
+        # 这些值来自实验测量的热力学参数
+        nn_params = {
+            'AA/TT': -1.2, 'AT/TA': -0.9, 'TA/AT': -0.9, 'CA/GT': -1.7,
+            'GT/CA': -1.7, 'CT/GA': -1.5, 'GA/CT': -1.5, 'CG/GC': -2.8,
+            'GC/CG': -2.8, 'GG/CC': -2.3
+        }
         
+        # 错配惩罚
+        mismatch_penalty = 1.0
+        
+        # 末端效应修正
+        end_penalty = 0.5
+        
+        # 获取seq2的互补序列
         seq2_comp = str(Seq(seq2).complement())
+        min_len = min(len(seq1), len(seq2_comp))
         
-        for i in range(min(len(seq1), len(seq2_comp))):
-            if (seq1[i] == 'G' and seq2_comp[i] == 'G') or (seq1[i] == 'C' and seq2_comp[i] == 'C'):
-                gc_count += 1
-            elif (seq1[i] == 'A' and seq2_comp[i] == 'A') or (seq1[i] == 'T' and seq2_comp[i] == 'T'):
-                at_count += 1
+        if min_len < 2:
+            return 0.0  # 序列太短，无法使用最近邻模型
         
-        # 简化的自由能计算 (kcal/mol)
-        # GC对贡献约-3 kcal/mol，AT对贡献约-2 kcal/mol
-        free_energy = -3 * gc_count - 2 * at_count
+        free_energy = 0.0
+        
+        # 计算内部二核苷酸步骤的自由能
+        for i in range(min_len - 1):
+            # 获取当前位置的碱基
+            base1_curr = seq1[i]
+            base1_next = seq1[i+1]
+            base2_curr = seq2_comp[i]
+            base2_next = seq2_comp[i+1]
+            
+            # 检查是否有匹配的碱基对
+            match_curr = self._is_complementary(base1_curr, base2_curr)
+            match_next = self._is_complementary(base1_next, base2_next)
+            
+            if match_curr and match_next:
+                # 形成二核苷酸步骤
+                dinuc = f"{base1_curr}{base1_next}/{base2_curr}{base2_next}"
+                
+                # 标准化二核苷酸键表示
+                if dinuc in nn_params:
+                    free_energy += nn_params[dinuc]
+                else:
+                    # 尝试反向表示
+                    rev_dinuc = f"{base1_next}{base1_curr}/{base2_next}{base2_curr}"
+                    if rev_dinuc in nn_params:
+                        free_energy += nn_params[rev_dinuc]
+                    else:
+                        # 如果找不到参数，使用平均值
+                        free_energy += -1.8
+            elif not match_curr and not match_next:
+                # 两个连续的错配
+                free_energy += mismatch_penalty * 2
+            else:
+                # 单个错配
+                free_energy += mismatch_penalty
+        
+        # 添加末端效应修正
+        free_energy += end_penalty * 2
         
         return free_energy
+    
+    def _is_complementary(self, base1: str, base2: str) -> bool:
+        """
+        检查两个碱基是否互补
+        
+        参数:
+        base1: 第一个碱基
+        base2: 第二个碱基
+        
+        返回:
+        如果互补则为True，否则为False
+        """
+        complementary_pairs = {
+            'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'
+        }
+        
+        return base2 == complementary_pairs.get(base1, 'X')
     
     def batch_analyze(self, sequences: List[str]) -> List[Tuple[List[Dict], float]]:
         """
