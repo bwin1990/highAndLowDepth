@@ -159,18 +159,34 @@ class OligoAnalyzerGUI:
         self.min_match_var = tk.IntVar(value=4)
         ttk.Spinbox(params_frame, from_=3, to=15, textvariable=self.min_match_var, width=10).grid(row=2, column=1, padx=5, pady=2)
         
+        # 分析模式选择
+        ttk.Label(params_frame, text="分析模式:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        self.analysis_mode_var = tk.StringVar(value="flank")
+        analysis_mode_combo = ttk.Combobox(params_frame, textvariable=self.analysis_mode_var, width=10)
+        analysis_mode_combo['values'] = ('flank', 'global')
+        analysis_mode_combo['state'] = 'readonly'
+        analysis_mode_combo.grid(row=3, column=1, padx=5, pady=2)
+        analysis_mode_combo.bind('<<ComboboxSelected>>', self._on_analysis_mode_change)
+        
         # Flank分析模式选择
-        ttk.Label(params_frame, text="Flank分析模式:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(params_frame, text="Flank分析模式:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
         self.flank_mode_var = tk.StringVar(value="both")
-        flank_mode_combo = ttk.Combobox(params_frame, textvariable=self.flank_mode_var, width=10)
-        flank_mode_combo['values'] = ('both', '5p', '3p')
-        flank_mode_combo['state'] = 'readonly'
-        flank_mode_combo.grid(row=3, column=1, padx=5, pady=2)
+        self.flank_mode_combo = ttk.Combobox(params_frame, textvariable=self.flank_mode_var, width=10)
+        self.flank_mode_combo['values'] = ('both', '5p', '3p')
+        self.flank_mode_combo['state'] = 'readonly'
+        self.flank_mode_combo.grid(row=4, column=1, padx=5, pady=2)
+        
+        # GC-only选项（只在全局模式下显示）
+        self.gc_only_var = tk.BooleanVar(value=False)
+        self.gc_only_check = ttk.Checkbutton(params_frame, text="仅分析GC序列", variable=self.gc_only_var)
+        self.gc_only_check.grid(row=5, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+        self.gc_only_check.state(['disabled'])  # 初始时禁用
         
         # 添加模式说明
         mode_frame = ttk.Frame(input_frame)
         mode_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Label(mode_frame, text="模式说明: both=两端flank, 5p=仅5'端flank, 3p=仅3'端flank").pack(anchor=tk.W)
+        ttk.Label(mode_frame, text="分析模式: flank=分析flank与内部序列互补, global=全局序列互补分析").pack(anchor=tk.W)
+        ttk.Label(mode_frame, text="Flank模式: both=两端flank, 5p=仅5'端flank, 3p=仅3'端flank").pack(anchor=tk.W)
         
         # 按钮区域
         button_frame = ttk.Frame(input_frame)
@@ -195,6 +211,18 @@ class OligoAnalyzerGUI:
         # 初始化结果存储
         self.single_results = None
         self.single_score = None
+        
+    def _on_analysis_mode_change(self, event):
+        """分析模式改变时的处理函数"""
+        if self.analysis_mode_var.get() == 'flank':
+            # 启用Flank模式选项，禁用GC-only选项
+            self.flank_mode_combo.state(['!disabled'])
+            self.gc_only_check.state(['disabled'])
+            self.gc_only_var.set(False)
+        else:  # global模式
+            # 禁用Flank模式选项，启用GC-only选项
+            self.flank_mode_combo.state(['disabled'])
+            self.gc_only_check.state(['!disabled'])
         
     def _setup_compare_analysis_tab(self):
         """设置组比较分析标签页"""
@@ -236,31 +264,47 @@ class OligoAnalyzerGUI:
         self.comp_min_match_var = tk.IntVar(value=4)
         ttk.Spinbox(params_frame, from_=3, to=15, textvariable=self.comp_min_match_var, width=10).grid(row=2, column=1, padx=5, pady=2)
         
+        # 分析模式选择
+        ttk.Label(params_frame, text="分析模式:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        self.comp_analysis_mode_var = tk.StringVar(value="flank")
+        comp_analysis_mode_combo = ttk.Combobox(params_frame, textvariable=self.comp_analysis_mode_var, width=10)
+        comp_analysis_mode_combo['values'] = ('flank', 'global')
+        comp_analysis_mode_combo['state'] = 'readonly'
+        comp_analysis_mode_combo.grid(row=3, column=1, padx=5, pady=2)
+        comp_analysis_mode_combo.bind('<<ComboboxSelected>>', self._on_comp_analysis_mode_change)
+        
         # Flank分析模式选择
-        ttk.Label(params_frame, text="Flank分析模式:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(params_frame, text="Flank分析模式:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
         self.comp_flank_mode_var = tk.StringVar(value="both")
-        comp_flank_mode_combo = ttk.Combobox(params_frame, textvariable=self.comp_flank_mode_var, width=10)
-        comp_flank_mode_combo['values'] = ('both', '5p', '3p')
-        comp_flank_mode_combo['state'] = 'readonly'
-        comp_flank_mode_combo.grid(row=3, column=1, padx=5, pady=2)
+        self.comp_flank_mode_combo = ttk.Combobox(params_frame, textvariable=self.comp_flank_mode_var, width=10)
+        self.comp_flank_mode_combo['values'] = ('both', '5p', '3p')
+        self.comp_flank_mode_combo['state'] = 'readonly'
+        self.comp_flank_mode_combo.grid(row=4, column=1, padx=5, pady=2)
+        
+        # GC-only选项（只在全局模式下显示）
+        self.comp_gc_only_var = tk.BooleanVar(value=False)
+        self.comp_gc_only_check = ttk.Checkbutton(params_frame, text="仅分析GC序列", variable=self.comp_gc_only_var)
+        self.comp_gc_only_check.grid(row=5, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+        self.comp_gc_only_check.state(['disabled'])  # 初始时禁用
         
         # 图表类型选择
-        ttk.Label(params_frame, text="图表类型:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(params_frame, text="图表类型:").grid(row=6, column=0, sticky=tk.W, padx=5, pady=2)
         self.comp_plot_type_var = tk.StringVar(value="boxviolin")
         comp_plot_type_combo = ttk.Combobox(params_frame, textvariable=self.comp_plot_type_var, width=10)
         comp_plot_type_combo['values'] = ('boxviolin', 'histogram', 'scatter', 'boxplot', 'violinplot', 'swarmplot', 'stripplot')
         comp_plot_type_combo['state'] = 'readonly'
-        comp_plot_type_combo.grid(row=4, column=1, padx=5, pady=2)
+        comp_plot_type_combo.grid(row=6, column=1, padx=5, pady=2)
         
         # 添加图表类型说明
         chart_frame = ttk.Frame(input_frame)
         chart_frame.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(chart_frame, text="分析模式: flank=分析flank与内部序列互补, global=全局序列互补分析").pack(anchor=tk.W)
         ttk.Label(chart_frame, text="图表类型: boxviolin=箱线图+小提琴图, histogram=直方图, scatter=散点图").pack(anchor=tk.W)
         
         # 添加模式说明
         mode_frame = ttk.Frame(input_frame)
         mode_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Label(mode_frame, text="模式说明: both=两端flank, 5p=仅5'端flank, 3p=仅3'端flank").pack(anchor=tk.W)
+        ttk.Label(mode_frame, text="Flank模式: both=两端flank, 5p=仅5'端flank, 3p=仅3'端flank").pack(anchor=tk.W)
         
         # 输出设置
         output_frame = ttk.Frame(input_frame)
@@ -292,6 +336,18 @@ class OligoAnalyzerGUI:
         
         # 初始化结果存储
         self.comparison_results = None
+    
+    def _on_comp_analysis_mode_change(self, event):
+        """组比较分析模式改变时的处理函数"""
+        if self.comp_analysis_mode_var.get() == 'flank':
+            # 启用Flank模式选项，禁用GC-only选项
+            self.comp_flank_mode_combo.state(['!disabled'])
+            self.comp_gc_only_check.state(['disabled'])
+            self.comp_gc_only_var.set(False)
+        else:  # global模式
+            # 禁用Flank模式选项，启用GC-only选项
+            self.comp_flank_mode_combo.state(['disabled'])
+            self.comp_gc_only_check.state(['!disabled'])
         
     def _setup_a_suscept_tab(self):
         """设置A碱基Susceptibility分析标签页"""
@@ -463,18 +519,25 @@ class OligoAnalyzerGUI:
             self.analyzer.min_match = self.min_match_var.get()
             self.analyzer.flank_mode = self.flank_mode_var.get()
             
-            # 分析序列
-            self.single_results, self.single_score = self.analyzer.analyze_sequence(sequence)
+            # 获取分析模式
+            analysis_mode = self.analysis_mode_var.get()
+            
+            # 根据模式分析序列
+            if analysis_mode == 'flank':
+                self.single_results, self.single_score = self.analyzer.analyze_sequence(sequence)
+            else:  # global模式
+                gc_only = self.gc_only_var.get()
+                self.single_results, self.single_score = self.analyzer.analyze_sequence_global(sequence, gc_only)
             
             # 显示结果
-            self._display_single_results(sequence)
+            self._display_single_results(sequence, analysis_mode)
             
             self.status_var.set("分析完成")
         except Exception as e:
             messagebox.showerror("错误", str(e))
             self.status_var.set("分析失败")
             
-    def _display_single_results(self, sequence):
+    def _display_single_results(self, sequence, mode='flank'):
         """显示单序列分析结果"""
         # 清除结果区域
         self.result_text.delete(1.0, tk.END)
@@ -482,19 +545,41 @@ class OligoAnalyzerGUI:
         # 显示总评分
         self.result_text.insert(tk.END, f"总互补评分: {self.single_score:.2f}\n")
         self.result_text.insert(tk.END, f"发现 {len(self.single_results)} 个潜在互补区域\n")
-        self.result_text.insert(tk.END, f"Flank分析模式: {self.analyzer.flank_mode}\n\n")
         
-        # 显示详细结果
-        for i, result in enumerate(self.single_results):
-            self.result_text.insert(tk.END, f"互补区域 {i+1}:\n")
-            self.result_text.insert(tk.END, f"Flank: {result['flank']}, 位置: {result['flank_pos']}\n")
-            self.result_text.insert(tk.END, f"内部位置: {result['internal_pos']}\n")
-            self.result_text.insert(tk.END, f"Flank序列: {result['flank_seq']}\n")
-            self.result_text.insert(tk.END, f"内部序列: {result['internal_seq']}\n")
-            self.result_text.insert(tk.END, f"互补序列: {result['complementary_seq']}\n")
-            self.result_text.insert(tk.END, f"匹配长度: {result['match_length']} bp\n")
-            self.result_text.insert(tk.END, f"评分: {result['score']:.2f}\n")
-            self.result_text.insert(tk.END, f"预估自由能: {result['free_energy']:.2f} kcal/mol\n\n")
+        if mode == 'flank':
+            self.result_text.insert(tk.END, f"分析模式: flank (Flank与内部序列互补)\n")
+            self.result_text.insert(tk.END, f"Flank分析模式: {self.analyzer.flank_mode}\n\n")
+            
+            # 显示flank分析详细结果
+            for i, result in enumerate(self.single_results):
+                self.result_text.insert(tk.END, f"互补区域 {i+1}:\n")
+                self.result_text.insert(tk.END, f"Flank: {result['flank']}, 位置: {result['flank_pos']}\n")
+                self.result_text.insert(tk.END, f"内部位置: {result['internal_pos']}\n")
+                self.result_text.insert(tk.END, f"Flank序列: {result['flank_seq']}\n")
+                self.result_text.insert(tk.END, f"内部序列: {result['internal_seq']}\n")
+                self.result_text.insert(tk.END, f"互补序列: {result['complementary_seq']}\n")
+                self.result_text.insert(tk.END, f"匹配长度: {result['match_length']} bp\n")
+                self.result_text.insert(tk.END, f"评分: {result['score']:.2f}\n")
+                self.result_text.insert(tk.END, f"预估自由能: {result['free_energy']:.2f} kcal/mol\n\n")
+        else:  # global模式
+            gc_only = self.gc_only_var.get()
+            self.result_text.insert(tk.END, f"分析模式: global (全局序列互补分析)\n")
+            if gc_only:
+                self.result_text.insert(tk.END, f"仅分析GC序列: 是\n\n")
+            else:
+                self.result_text.insert(tk.END, f"仅分析GC序列: 否\n\n")
+                
+            # 显示全局分析详细结果
+            for i, result in enumerate(self.single_results):
+                self.result_text.insert(tk.END, f"互补区域 {i+1}:\n")
+                self.result_text.insert(tk.END, f"区域1位置: {result['region1_pos']}\n")
+                self.result_text.insert(tk.END, f"区域2位置: {result['region2_pos']}\n")
+                self.result_text.insert(tk.END, f"区域1序列: {result['region1_seq']}\n")
+                self.result_text.insert(tk.END, f"区域2序列: {result['region2_seq']}\n")
+                self.result_text.insert(tk.END, f"互补序列: {result['complementary_seq']}\n")
+                self.result_text.insert(tk.END, f"匹配长度: {result['match_length']} bp\n")
+                self.result_text.insert(tk.END, f"评分: {result['score']:.2f}\n")
+                self.result_text.insert(tk.END, f"预估自由能: {result['free_energy']:.2f} kcal/mol\n\n")
             
         # 显示可视化
         for widget in self.figure_frame.winfo_children():
@@ -504,7 +589,12 @@ class OligoAnalyzerGUI:
         plt.close('all')
         
         fig = plt.figure(figsize=(6, 4))
-        self.analyzer.visualize_structure(sequence, self.single_results)
+        
+        if mode == 'flank':
+            self.analyzer.visualize_structure(sequence, self.single_results)
+        else:  # global模式
+            gc_only = self.gc_only_var.get()
+            self.analyzer.visualize_global_structure(sequence, self.single_results, gc_only)
         
         canvas = FigureCanvasTkAgg(fig, master=self.figure_frame)
         canvas.draw()
@@ -530,25 +620,53 @@ class OligoAnalyzerGUI:
                 f.write(f"DNA自我互补结构分析结果\n")
                 f.write("=" * 50 + "\n\n")
                 
-                f.write(f"总互补评分: {self.single_score:.2f}\n")
-                f.write(f"发现 {len(self.single_results)} 个潜在互补区域\n\n")
+                # 获取分析模式
+                mode = self.analysis_mode_var.get()
                 
-                for i, result in enumerate(self.single_results):
-                    f.write(f"互补区域 {i+1}:\n")
-                    f.write(f"Flank: {result['flank']}, 位置: {result['flank_pos']}\n")
-                    f.write(f"内部位置: {result['internal_pos']}\n")
-                    f.write(f"Flank序列: {result['flank_seq']}\n")
-                    f.write(f"内部序列: {result['internal_seq']}\n")
-                    f.write(f"互补序列: {result['complementary_seq']}\n")
-                    f.write(f"匹配长度: {result['match_length']} bp\n")
-                    f.write(f"评分: {result['score']:.2f}\n")
-                    f.write(f"预估自由能: {result['free_energy']:.2f} kcal/mol\n\n")
+                f.write(f"总互补评分: {self.single_score:.2f}\n")
+                f.write(f"发现 {len(self.single_results)} 个潜在互补区域\n")
+                
+                if mode == 'flank':
+                    f.write(f"分析模式: flank (Flank与内部序列互补)\n")
+                    f.write(f"Flank分析模式: {self.analyzer.flank_mode}\n\n")
+                    
+                    for i, result in enumerate(self.single_results):
+                        f.write(f"互补区域 {i+1}:\n")
+                        f.write(f"Flank: {result['flank']}, 位置: {result['flank_pos']}\n")
+                        f.write(f"内部位置: {result['internal_pos']}\n")
+                        f.write(f"Flank序列: {result['flank_seq']}\n")
+                        f.write(f"内部序列: {result['internal_seq']}\n")
+                        f.write(f"互补序列: {result['complementary_seq']}\n")
+                        f.write(f"匹配长度: {result['match_length']} bp\n")
+                        f.write(f"评分: {result['score']:.2f}\n")
+                        f.write(f"预估自由能: {result['free_energy']:.2f} kcal/mol\n\n")
+                else:  # global模式
+                    gc_only = self.gc_only_var.get()
+                    f.write(f"分析模式: global (全局序列互补分析)\n")
+                    f.write(f"仅分析GC序列: {'是' if gc_only else '否'}\n\n")
+                    
+                    for i, result in enumerate(self.single_results):
+                        f.write(f"互补区域 {i+1}:\n")
+                        f.write(f"区域1位置: {result['region1_pos']}\n")
+                        f.write(f"区域2位置: {result['region2_pos']}\n")
+                        f.write(f"区域1序列: {result['region1_seq']}\n")
+                        f.write(f"区域2序列: {result['region2_seq']}\n")
+                        f.write(f"互补序列: {result['complementary_seq']}\n")
+                        f.write(f"匹配长度: {result['match_length']} bp\n")
+                        f.write(f"评分: {result['score']:.2f}\n")
+                        f.write(f"预估自由能: {result['free_energy']:.2f} kcal/mol\n\n")
                     
             # 保存图像
             img_filename = os.path.splitext(filename)[0] + ".png"
             fig = plt.figure(figsize=(8, 6))
+            
             sequence = self.sequence_text.get(1.0, tk.END).strip()
-            self.analyzer.visualize_structure(sequence, self.single_results)
+            if mode == 'flank':
+                self.analyzer.visualize_structure(sequence, self.single_results, save_path=img_filename)
+            else:  # global模式
+                gc_only = self.gc_only_var.get()
+                self.analyzer.visualize_global_structure(sequence, self.single_results, gc_only=gc_only, save_path=img_filename)
+                
             plt.close(fig)
             
             self.status_var.set(f"结果已保存至 {filename}")
@@ -591,8 +709,21 @@ class OligoAnalyzerGUI:
             self.analyzer.min_match = self.comp_min_match_var.get()
             self.analyzer.flank_mode = self.comp_flank_mode_var.get()
             
+            # 获取分析模式
+            mode = self.comp_analysis_mode_var.get()
+            gc_only = False
+            
+            # 如果是全局模式，获取GC-only参数
+            if mode == 'global':
+                gc_only = self.comp_gc_only_var.get()
+            
             # 比较两组
-            self.comparison_results = self.analyzer.compare_groups(high_eff_seqs, low_eff_seqs)
+            self.comparison_results = self.analyzer.compare_groups(
+                high_eff_seqs, 
+                low_eff_seqs,
+                mode=mode,
+                gc_only=gc_only
+            )
             
             # 显示结果
             self._display_comparison_results()
@@ -614,28 +745,37 @@ class OligoAnalyzerGUI:
         # 清除结果区域
         self.comp_result_text.delete(1.0, tk.END)
         
+        # 显示分析模式信息
+        mode = self.comp_analysis_mode_var.get()
+        gc_only = self.comp_gc_only_var.get() if mode == 'global' else False
+        
+        self.comp_result_text.insert(tk.END, f"分析模式: {mode}\n")
+        if mode == 'flank':
+            self.comp_result_text.insert(tk.END, f"Flank分析模式: {self.analyzer.flank_mode}\n")
+        else:  # global
+            self.comp_result_text.insert(tk.END, f"仅分析GC序列: {'是' if gc_only else '否'}\n")
+            
         # 显示结果摘要
-        self.comp_result_text.insert(tk.END, "Analysis Results:\n")
-        self.comp_result_text.insert(tk.END, f"High Efficiency Group Mean Score: {self.comparison_results['high_efficiency']['mean']:.2f} ± {self.comparison_results['high_efficiency']['std']:.2f}\n")
-        self.comp_result_text.insert(tk.END, f"Low Efficiency Group Mean Score: {self.comparison_results['low_efficiency']['mean']:.2f} ± {self.comparison_results['low_efficiency']['std']:.2f}\n")
-        self.comp_result_text.insert(tk.END, f"Score Difference: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n\n")
+        self.comp_result_text.insert(tk.END, "\n互补分析结果:\n")
+        self.comp_result_text.insert(tk.END, f"高效率组平均分值: {self.comparison_results['high_efficiency']['mean']:.2f} ± {self.comparison_results['high_efficiency']['std']:.2f}\n")
+        self.comp_result_text.insert(tk.END, f"低效率组平均分值: {self.comparison_results['low_efficiency']['mean']:.2f} ± {self.comparison_results['low_efficiency']['std']:.2f}\n")
+        self.comp_result_text.insert(tk.END, f"分值差异: {self.comparison_results['difference']['mean_diff']:.2f} ({self.comparison_results['difference']['percent_diff']:.1f}%)\n\n")
         
         # 显示自由能结果
-        self.comp_result_text.insert(tk.END, f"High Efficiency Group Mean Free Energy: {self.comparison_results['high_efficiency']['energy_mean']:.2f} ± {self.comparison_results['high_efficiency']['energy_std']:.2f} kcal/mol\n")
-        self.comp_result_text.insert(tk.END, f"Low Efficiency Group Mean Free Energy: {self.comparison_results['low_efficiency']['energy_mean']:.2f} ± {self.comparison_results['low_efficiency']['energy_std']:.2f} kcal/mol\n")
-        self.comp_result_text.insert(tk.END, f"Free Energy Difference: {self.comparison_results['difference']['energy_mean_diff']:.2f} kcal/mol ({self.comparison_results['difference']['energy_percent_diff']:.1f}%)\n\n")
+        self.comp_result_text.insert(tk.END, f"高效率组平均自由能: {self.comparison_results['high_efficiency']['energy_mean']:.2f} ± {self.comparison_results['high_efficiency']['energy_std']:.2f} kcal/mol\n")
+        self.comp_result_text.insert(tk.END, f"低效率组平均自由能: {self.comparison_results['low_efficiency']['energy_mean']:.2f} ± {self.comparison_results['low_efficiency']['energy_std']:.2f} kcal/mol\n")
+        self.comp_result_text.insert(tk.END, f"自由能差异: {self.comparison_results['difference']['energy_mean_diff']:.2f} kcal/mol ({self.comparison_results['difference']['energy_percent_diff']:.1f}%)\n\n")
         
-        self.comp_result_text.insert(tk.END, f"Flank Analysis Mode: {self.analyzer.flank_mode}\n")
-        self.comp_result_text.insert(tk.END, f"Chart Type: {self.comp_plot_type_var.get()}\n\n")
+        self.comp_result_text.insert(tk.END, f"图表类型: {self.comp_plot_type_var.get()}\n\n")
         
-        self.comp_result_text.insert(tk.END, f"High Efficiency Group Sample Size: {len(self.comparison_results['high_efficiency']['scores'])}\n")
-        self.comp_result_text.insert(tk.END, f"Low Efficiency Group Sample Size: {len(self.comparison_results['low_efficiency']['scores'])}\n\n")
+        self.comp_result_text.insert(tk.END, f"高效率组样本数量: {len(self.comparison_results['high_efficiency']['scores'])}\n")
+        self.comp_result_text.insert(tk.END, f"低效率组样本数量: {len(self.comparison_results['low_efficiency']['scores'])}\n\n")
         
-        self.comp_result_text.insert(tk.END, "High Efficiency Group Scores: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['high_efficiency']['scores']]) + "\n\n")
-        self.comp_result_text.insert(tk.END, "Low Efficiency Group Scores: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['low_efficiency']['scores']]) + "\n\n")
+        self.comp_result_text.insert(tk.END, "高效率组分值: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['high_efficiency']['scores']]) + "\n\n")
+        self.comp_result_text.insert(tk.END, "低效率组分值: " + ", ".join([f"{score:.2f}" for score in self.comparison_results['low_efficiency']['scores']]) + "\n\n")
         
-        self.comp_result_text.insert(tk.END, "High Efficiency Group Free Energies: " + ", ".join([f"{energy:.2f}" for energy in self.comparison_results['high_efficiency']['energies']]) + "\n\n")
-        self.comp_result_text.insert(tk.END, "Low Efficiency Group Free Energies: " + ", ".join([f"{energy:.2f}" for energy in self.comparison_results['low_efficiency']['energies']]) + "\n")
+        self.comp_result_text.insert(tk.END, "高效率组自由能: " + ", ".join([f"{energy:.2f}" for energy in self.comparison_results['high_efficiency']['energies']]) + "\n\n")
+        self.comp_result_text.insert(tk.END, "低效率组自由能: " + ", ".join([f"{energy:.2f}" for energy in self.comparison_results['low_efficiency']['energies']]) + "\n")
         
         # 显示可视化
         for widget in self.comp_figure_frame.winfo_children():
@@ -659,9 +799,25 @@ class OligoAnalyzerGUI:
         # 获取选择的图表类型
         plot_type = self.comp_plot_type_var.get()
         
+        # 构建标题，包含分析模式信息
+        if mode == 'flank':
+            title = f"高低效率序列互补评分比较 (Flank模式: {self.analyzer.flank_mode})"
+            energy_title = f"高低效率序列自由能比较 (Flank模式: {self.analyzer.flank_mode})"
+        else:  # global
+            if gc_only:
+                title = "高低效率序列互补评分比较 (全局模式, 仅GC)"
+                energy_title = "高低效率序列自由能比较 (全局模式, 仅GC)"
+            else:
+                title = "高低效率序列互补评分比较 (全局模式)"
+                energy_title = "高低效率序列自由能比较 (全局模式)"
+        
         # 绘制互补评分比较图表
         plt.figure(figsize=(10, 6))
-        self.analyzer.plot_comparison(self.comparison_results, plot_type=plot_type)
+        self.analyzer.plot_comparison(
+            self.comparison_results, 
+            title=title,
+            plot_type=plot_type
+        )
         
         # 将互补评分图表嵌入到第一个标签页
         score_canvas = FigureCanvasTkAgg(plt.gcf(), master=score_tab)
@@ -670,7 +826,11 @@ class OligoAnalyzerGUI:
         
         # 绘制自由能比较图表
         plt.figure(figsize=(10, 6))
-        self.analyzer.plot_energy_comparison(self.comparison_results, plot_type=plot_type)
+        self.analyzer.plot_energy_comparison(
+            self.comparison_results, 
+            title=energy_title,
+            plot_type=plot_type
+        )
         
         # 将自由能图表嵌入到第二个标签页
         energy_canvas = FigureCanvasTkAgg(plt.gcf(), master=energy_tab)
@@ -1030,7 +1190,7 @@ class OligoAnalyzerGUI:
                     
                     f.write("详细分值:\n")
                     f.write("  高效率组: " + ", ".join([f"{score:.2f}" for score in self.a_comparison_results['high_efficiency']['scores']]) + "\n")
-                    f.write("  低效率组: " + ", ".join([f"{score:.2f}" for score in self.a_comparison_results['low_efficiency']['scores']]) + "\n")
+                    f.write("  低效率组: " + ", ".join([f"{score:.2f}" for score in self.a_comparison_results['low_efficiency']['scores']]) + "\n\n")
             
             # 保存图像
             img_filename = os.path.splitext(file_path)[0] + ".png"

@@ -90,6 +90,81 @@ class DNAComplementAnalyzer:
         
         return results, total_score
     
+    def analyze_sequence_global(self, seq: str, gc_only: bool = False) -> Tuple[List[Dict], float]:
+        """
+        对整个DNA序列进行全局自我互补结构分析
+        
+        参数:
+        seq: DNA序列
+        gc_only: 是否只分析GC碱基（如果为True，则过滤掉所有AT碱基）
+        
+        返回:
+        互补区域列表和总评分
+        """
+        # 标准化序列并检查有效性
+        seq = self._validate_sequence(seq)
+        
+        # 如果需要，过滤掉AT碱基，只保留GC
+        if gc_only:
+            seq = ''.join([base for base in seq if base in 'GC'])
+            if len(seq) < self.min_match:
+                raise ValueError(f"过滤AT后的序列长度({len(seq)})太短，无法进行分析。需要至少{self.min_match}bp")
+        
+        # 使用滑动窗口检查全局互补
+        results = self._check_global_complementarity(seq)
+        
+        # 计算总评分
+        total_score = sum(result['score'] for result in results)
+        
+        return results, total_score
+    
+    def _check_global_complementarity(self, seq: str) -> List[Dict]:
+        """
+        检查整个序列内部的互补性（全局分析）
+        
+        参数:
+        seq: 完整序列
+        
+        返回:
+        互补区域列表
+        """
+        results = []
+        seq_length = len(seq)
+        
+        # 对序列进行滑动窗口分析
+        for i in range(seq_length - self.window_size + 1):
+            window1 = seq[i:i+self.window_size]
+            window1_rev_comp = str(Seq(window1).reverse_complement())
+            
+            # 查找其余序列中与当前窗口互补的区域
+            for j in range(i + self.window_size, seq_length - self.min_match + 1):
+                # 尝试不同长度的匹配
+                for k in range(self.min_match, min(self.window_size, seq_length - j) + 1):
+                    segment2 = seq[j:j+k]
+                    
+                    # 检查是否存在于反向互补序列中
+                    if segment2 in window1_rev_comp:
+                        # 计算匹配评分
+                        match_score = self._calculate_score(k, segment2, window1)
+                        # 计算自由能
+                        free_energy = self.calculate_free_energy(segment2, 
+                                                                window1[window1_rev_comp.find(segment2):
+                                                                      window1_rev_comp.find(segment2)+len(segment2)])
+                        
+                        # 记录结果
+                        results.append({
+                            'region1_pos': (i, i+self.window_size),
+                            'region2_pos': (j, j+k),
+                            'region1_seq': window1,
+                            'region2_seq': segment2,
+                            'complementary_seq': window1_rev_comp,
+                            'match_length': k,
+                            'score': match_score,
+                            'free_energy': free_energy
+                        })
+        
+        return results
+    
     def _validate_sequence(self, seq: str) -> str:
         """验证并标准化DNA序列"""
         seq = seq.upper().strip()
@@ -287,38 +362,49 @@ class DNAComplementAnalyzer:
         
         return base2 == complementary_pairs.get(base1, 'X')
     
-    def batch_analyze(self, sequences: List[str]) -> List[Tuple[List[Dict], float]]:
+    def batch_analyze(self, sequences: List[str], mode: str = 'flank', gc_only: bool = False) -> List[Tuple[List[Dict], float]]:
         """
         批量分析多个序列
         
         参数:
         sequences: DNA序列列表
+        mode: 分析模式，'flank'表示使用flank分析，'global'表示使用全局分析
+        gc_only: 当mode为'global'时，是否只分析GC碱基
         
         返回:
         每个序列的分析结果列表
         """
         results = []
         for seq in sequences:
-            result = self.analyze_sequence(seq)
+            if mode == 'flank':
+                result = self.analyze_sequence(seq)
+            elif mode == 'global':
+                result = self.analyze_sequence_global(seq, gc_only)
+            else:
+                raise ValueError(f"无效的分析模式: {mode}. 必须是 'flank' 或 'global'")
             results.append(result)
         return results
     
     def compare_groups(self, 
                       high_efficiency_oligos: List[str], 
-                      low_efficiency_oligos: List[str]) -> Dict[str, Any]:
+                      low_efficiency_oligos: List[str],
+                      mode: str = 'flank',
+                      gc_only: bool = False) -> Dict[str, Any]:
         """
         比较高效率和低效率oligos的自我互补性
         
         参数:
         high_efficiency_oligos: 高效率oligo序列列表
         low_efficiency_oligos: 低效率oligo序列列表
+        mode: 分析模式，'flank'表示使用flank分析，'global'表示使用全局分析
+        gc_only: 当mode为'global'时，是否只分析GC碱基
         
         返回:
         比较结果的字典
         """
         # 分析并收集两组oligo的评分
-        high_eff_results = self.batch_analyze(high_efficiency_oligos)
-        low_eff_results = self.batch_analyze(low_efficiency_oligos)
+        high_eff_results = self.batch_analyze(high_efficiency_oligos, mode, gc_only)
+        low_eff_results = self.batch_analyze(low_efficiency_oligos, mode, gc_only)
         
         high_eff_scores = [result[1] for result in high_eff_results]
         low_eff_scores = [result[1] for result in low_eff_results]
@@ -390,6 +476,89 @@ class DNAComplementAnalyzer:
         }
         
         return comparison_result
+    
+    def visualize_global_structure(self, seq: str, results: List[Dict], 
+                                 gc_only: bool = False,
+                                 title: str = 'DNA Sequence Global Self-complementary Structure', 
+                                 save_path: Optional[str] = None) -> None:
+        """
+        可视化DNA序列中的全局自我互补结构
+        
+        参数:
+        seq: DNA序列
+        results: 全局自我互补分析结果（来自analyze_sequence_global方法）
+        gc_only: 是否只分析了GC碱基
+        title: 图表标题
+        save_path: 图表保存路径（如果不为None）
+        """
+        if not results:
+            print("No complementary structures found, cannot visualize")
+            return
+        
+        # 设置图表
+        fig, ax = plt.subplots(figsize=(14, 8))
+        
+        # 显示原始序列或GC-only序列
+        display_seq = seq
+        if gc_only:
+            display_seq = ''.join([base for base in seq if base in 'GC'])
+            title += " (GC Only)"
+        
+        seq_length = len(display_seq)
+        
+        # 绘制序列框架
+        ax.plot([0, seq_length], [0, 0], 'k-', linewidth=2)
+        
+        # 绘制互补区域连接
+        colors = plt.cm.tab10(np.linspace(0, 1, min(10, len(results))))
+        
+        for i, result in enumerate(results):
+            color = colors[i % len(colors)]
+            
+            region1_start = result['region1_pos'][0]
+            region1_end = result['region1_pos'][1]
+            region2_start = result['region2_pos'][0]
+            region2_end = result['region2_pos'][1]
+            
+            # 绘制连接线
+            ax.plot([region1_start, region2_start], [-0.5, -1.0], '-', color=color, alpha=0.7)
+            ax.plot([region1_end, region2_end], [-0.5, -1.0], '-', color=color, alpha=0.7)
+            
+            # 高亮显示区域1
+            ax.plot([region1_start, region1_end], [-0.5, -0.5], 'o-', color=color, linewidth=2)
+            
+            # 高亮显示区域2
+            ax.plot([region2_start, region2_end], [-1.0, -1.0], 'o-', color=color, linewidth=2)
+            
+            # 添加信息标签
+            midpoint_x = (region1_start + region2_end) / 2
+            ax.text(midpoint_x, -1.5, 
+                   f"Match {i+1}: {result['match_length']}bp\n"
+                   f"Score: {result['score']:.2f}\n"
+                   f"ΔG: {result['free_energy']:.1f} kcal/mol",
+                   ha='center', va='top', 
+                   bbox=dict(boxstyle='round', fc='white', ec=color, alpha=0.7))
+        
+        # 设置图表属性
+        ax.set_xlim(-5, seq_length+5)
+        ax.set_ylim(-4, 1)
+        ax.set_title(title, fontsize=16)
+        ax.set_xlabel('Sequence Position (bp)')
+        ax.set_yticks([])
+        
+        # 添加总结信息
+        total_score = sum(result['score'] for result in results)
+        plt.figtext(0.5, 0.01, 
+                   f"Total Score: {total_score:.2f}   Number of Complementary Regions: {len(results)}", 
+                   ha='center', fontsize=12)
+        
+        plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+        
+        # 保存或显示图表
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        else:
+            plt.show()
     
     def plot_comparison(self, comparison_result: Dict[str, Any], 
                         title: str = 'Comparison of High and Low Efficiency Oligos',
@@ -1136,6 +1305,58 @@ if __name__ == "__main__":
     
     # 可视化结构
     analyzer.visualize_structure(test_seq, results)
+    
+    print("\n\n")
+    print("=" * 50)
+    print("测试全局互补分析功能")
+    print("=" * 50)
+    
+    # 使用全局分析模式
+    global_results, global_score = analyzer.analyze_sequence_global(test_seq)
+    
+    # 打印全局分析结果
+    print(f"全局分析总评分: {global_score:.2f}")
+    print(f"发现 {len(global_results)} 个潜在全局互补区域")
+    
+    for i, result in enumerate(global_results):
+        print(f"\n全局互补区域 {i+1}:")
+        print(f"区域1位置: {result['region1_pos']}")
+        print(f"区域2位置: {result['region2_pos']}")
+        print(f"区域1序列: {result['region1_seq']}")
+        print(f"区域2序列: {result['region2_seq']}")
+        print(f"互补序列: {result['complementary_seq']}")
+        print(f"匹配长度: {result['match_length']} bp")
+        print(f"评分: {result['score']:.2f}")
+        print(f"预估自由能: {result['free_energy']:.2f} kcal/mol")
+    
+    # 可视化全局互补结构
+    analyzer.visualize_global_structure(test_seq, global_results)
+    
+    # 测试GC-only模式
+    print("\n\n")
+    print("=" * 50)
+    print("测试GC-only全局互补分析功能")
+    print("=" * 50)
+    
+    gc_results, gc_score = analyzer.analyze_sequence_global(test_seq, gc_only=True)
+    
+    # 打印GC-only分析结果
+    print(f"GC-only分析总评分: {gc_score:.2f}")
+    print(f"发现 {len(gc_results)} 个潜在GC互补区域")
+    
+    for i, result in enumerate(gc_results):
+        print(f"\nGC互补区域 {i+1}:")
+        print(f"区域1位置: {result['region1_pos']}")
+        print(f"区域2位置: {result['region2_pos']}")
+        print(f"区域1序列: {result['region1_seq']}")
+        print(f"区域2序列: {result['region2_seq']}")
+        print(f"互补序列: {result['complementary_seq']}")
+        print(f"匹配长度: {result['match_length']} bp")
+        print(f"评分: {result['score']:.2f}")
+        print(f"预估自由能: {result['free_energy']:.2f} kcal/mol")
+    
+    # 可视化GC-only互补结构
+    analyzer.visualize_global_structure(test_seq, gc_results, gc_only=True)
     
     print("\n\n")
     print("=" * 50)
