@@ -16,6 +16,7 @@ from Bio import SeqIO
 import os
 import json
 import pandas as pd
+import math
 
 
 class DNAComplementAnalyzer:
@@ -746,6 +747,367 @@ class DNAComplementAnalyzer:
             plt.show()
 
 
+class ASusceptibilityAnalyzer:
+    """分析DNA序列中A碱基的susceptibility"""
+    
+    def __init__(self):
+        """初始化分析器"""
+        pass
+    
+    def analyze_sequence(self, seq: str) -> float:
+        """
+        分析DNA序列中A碱基的susceptibility
+        
+        参数:
+        seq: DNA序列
+        
+        返回:
+        序列中所有A碱基susceptibility的总和
+        """
+        # 标准化序列并检查有效性
+        seq = self._validate_sequence(seq)
+        
+        # 找到所有A碱基的位置（以0为起始索引）
+        a_positions = [i for i, base in enumerate(seq) if base == 'A']
+        
+        if not a_positions:
+            return 0.0  # 如果序列中没有A碱基，返回0
+        
+        total_susceptibility = 0.0
+        
+        # 计算每个A碱基的susceptibility
+        for pos in a_positions:
+            # 计算位置效应，第一位为0
+            position_effect = math.log(pos + 1) if pos > 0 else 0
+            
+            # 查找当前A碱基所在的连续嘌呤序列(A和G)
+            purine_length = self._get_continuous_purine_length(seq, pos)
+            
+            # 计算嘌呤堆积效应
+            purine_effect = purine_length
+            
+            # 计算该位置A碱基的susceptibility
+            a_susceptibility = position_effect * purine_effect
+            
+            # 累加到总分
+            total_susceptibility += a_susceptibility
+        
+        return total_susceptibility
+    
+    def _validate_sequence(self, seq: str) -> str:
+        """验证并标准化DNA序列"""
+        seq = seq.upper().strip()
+        
+        # 检查序列是否只包含有效碱基
+        valid_bases = set('ATGCN')
+        if not all(base in valid_bases for base in seq):
+            invalid_bases = [base for base in seq if base not in valid_bases]
+            raise ValueError(f"序列包含无效碱基: {', '.join(invalid_bases)}")
+            
+        return seq
+    
+    def _get_continuous_purine_length(self, seq: str, pos: int) -> int:
+        """
+        获取A碱基所在的连续嘌呤序列的长度
+        
+        参数:
+        seq: DNA序列
+        pos: A碱基的位置
+        
+        返回:
+        包含该A碱基的连续嘌呤序列的长度
+        """
+        # 确保pos位置是A碱基
+        if seq[pos] != 'A':
+            raise ValueError(f"位置 {pos} 的碱基不是A，而是 {seq[pos]}")
+        
+        # 向左寻找连续嘌呤
+        left = pos
+        while left > 0 and seq[left-1] in 'AG':
+            left -= 1
+        
+        # 向右寻找连续嘌呤
+        right = pos
+        while right < len(seq) - 1 and seq[right+1] in 'AG':
+            right += 1
+        
+        # 计算连续嘌呤序列的长度
+        return right - left + 1
+    
+    def batch_analyze(self, sequences: List[str]) -> List[float]:
+        """
+        批量分析多个序列
+        
+        参数:
+        sequences: DNA序列列表
+        
+        返回:
+        每个序列的A碱基susceptibility分数列表
+        """
+        results = []
+        for seq in sequences:
+            score = self.analyze_sequence(seq)
+            results.append(score)
+        return results
+    
+    def compare_groups(self, 
+                      high_efficiency_oligos: List[str], 
+                      low_efficiency_oligos: List[str]) -> Dict[str, Any]:
+        """
+        比较高效率和低效率oligos的A碱基susceptibility
+        
+        参数:
+        high_efficiency_oligos: 高效率oligo序列列表
+        low_efficiency_oligos: 低效率oligo序列列表
+        
+        返回:
+        比较结果的字典
+        """
+        # 分析并收集两组oligo的评分
+        high_eff_scores = self.batch_analyze(high_efficiency_oligos)
+        low_eff_scores = self.batch_analyze(low_efficiency_oligos)
+        
+        # 计算统计数据
+        high_mean = np.mean(high_eff_scores)
+        high_std = np.std(high_eff_scores)
+        low_mean = np.mean(low_eff_scores)
+        low_std = np.std(low_eff_scores)
+        
+        # 统计分析结果
+        comparison_result = {
+            'high_efficiency': {
+                'scores': high_eff_scores,
+                'mean': high_mean,
+                'std': high_std
+            },
+            'low_efficiency': {
+                'scores': low_eff_scores,
+                'mean': low_mean,
+                'std': low_std
+            },
+            'difference': {
+                'mean_diff': low_mean - high_mean,
+                'percent_diff': ((low_mean - high_mean) / high_mean) * 100 if high_mean > 0 else float('inf')
+            }
+        }
+        
+        return comparison_result
+    
+    def plot_comparison(self, comparison_result: Dict[str, Any], 
+                        title: str = 'A Susceptibility Comparison',
+                        save_path: Optional[str] = None,
+                        plot_type: str = 'boxviolin') -> None:
+        """
+        可视化比较结果
+        
+        参数:
+        comparison_result: 比较结果字典（来自compare_groups方法）
+        title: 图表标题
+        save_path: 图表保存路径（如果不为None）
+        plot_type: 图表类型，可选值同DNAComplementAnalyzer的plot_comparison方法
+        """
+        # 设置样式
+        sns.set_style("whitegrid")
+        plt.figure(figsize=(12, 8))
+        
+        # 准备数据
+        high_scores = comparison_result['high_efficiency']['scores']
+        low_scores = comparison_result['low_efficiency']['scores']
+        
+        # 根据plot_type选择不同的图表类型
+        if plot_type == 'boxviolin':
+            # 创建箱线图
+            ax1 = plt.subplot(121)
+            sns.boxplot(data=[high_scores, low_scores], ax=ax1)
+            ax1.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+            ax1.set_ylabel('A Susceptibility Score')
+            ax1.set_title('Box Plot Comparison')
+            
+            # 创建小提琴图
+            ax2 = plt.subplot(122)
+            sns.violinplot(data=[high_scores, low_scores], ax=ax2)
+            ax2.set_xticklabels(['High Efficiency', 'Low Efficiency'])
+            ax2.set_ylabel('A Susceptibility Score')
+            ax2.set_title('Distribution Comparison')
+            
+        elif plot_type == 'histogram':
+            # 创建直方图
+            plt.subplot(111)
+            plt.hist([high_scores, low_scores], bins=15, alpha=0.7, 
+                    label=['High Efficiency', 'Low Efficiency'])
+            plt.xlabel('A Susceptibility Score')
+            plt.ylabel('Frequency')
+            plt.legend()
+            plt.title('Score Distribution Histogram')
+            
+        elif plot_type == 'scatter':
+            # 创建散点图
+            plt.subplot(111)
+            high_x = np.ones(len(high_scores)) * 1
+            low_x = np.ones(len(low_scores)) * 2
+            plt.scatter(high_x, high_scores, alpha=0.7, label='High Efficiency')
+            plt.scatter(low_x, low_scores, alpha=0.7, label='Low Efficiency')
+            plt.xticks([1, 2], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('A Susceptibility Score')
+            plt.legend()
+            plt.title('Score Scatter Plot')
+            
+        elif plot_type in ['boxplot', 'violinplot', 'swarmplot', 'stripplot']:
+            # 支持其他类型的图表
+            plt.subplot(111)
+            
+            if plot_type == 'boxplot':
+                sns.boxplot(data=[high_scores, low_scores])
+            elif plot_type == 'violinplot':
+                sns.violinplot(data=[high_scores, low_scores])
+            else:
+                # 创建DataFrame以便使用seaborn的分类图
+                data = []
+                for score in high_scores:
+                    data.append({'Group': 'High Efficiency', 'Score': score})
+                for score in low_scores:
+                    data.append({'Group': 'Low Efficiency', 'Score': score})
+                df = pd.DataFrame(data)
+                
+                if plot_type == 'swarmplot':
+                    sns.swarmplot(x='Group', y='Score', data=df)
+                elif plot_type == 'stripplot':
+                    sns.stripplot(x='Group', y='Score', data=df, jitter=True)
+            
+            plt.xticks([0, 1], ['High Efficiency', 'Low Efficiency'])
+            plt.ylabel('A Susceptibility Score')
+            plt.title(f'{plot_type.capitalize()} Comparison')
+            
+        else:
+            raise ValueError(f"Unsupported plot type: {plot_type}")
+        
+        # 添加统计信息
+        plt.figtext(0.5, 0.01, 
+                   f"High Efficiency Mean: {comparison_result['high_efficiency']['mean']:.2f} ± {comparison_result['high_efficiency']['std']:.2f}\n"
+                   f"Low Efficiency Mean: {comparison_result['low_efficiency']['mean']:.2f} ± {comparison_result['low_efficiency']['std']:.2f}\n"
+                   f"Difference: {comparison_result['difference']['mean_diff']:.2f} ({comparison_result['difference']['percent_diff']:.1f}%)",
+                   ha='center', fontsize=12)
+        
+        plt.suptitle(title, fontsize=16)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        # 保存图表
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    def visualize_sequence_susceptibility(self, seq: str, 
+                                         title: str = 'A Susceptibility Analysis', 
+                                         save_path: Optional[str] = None) -> None:
+        """
+        可视化DNA序列中A碱基的susceptibility
+        
+        参数:
+        seq: DNA序列
+        title: 图表标题
+        save_path: 图表保存路径（如果不为None）
+        """
+        # 标准化序列
+        seq = self._validate_sequence(seq)
+        
+        # 找到所有A碱基的位置
+        a_positions = [i for i, base in enumerate(seq) if base == 'A']
+        
+        if not a_positions:
+            print("序列中没有A碱基，无法可视化")
+            return
+        
+        # 计算每个A碱基的susceptibility
+        susceptibilities = []
+        purine_lengths = []
+        position_effects = []
+        purine_effects = []
+        
+        for pos in a_positions:
+            # 计算位置效应
+            position_effect = math.log(pos + 1) if pos > 0 else 0
+            position_effects.append(position_effect)
+            
+            # 计算嘌呤堆积效应
+            purine_length = self._get_continuous_purine_length(seq, pos)
+            purine_lengths.append(purine_length)
+            purine_effect = purine_length ** 2
+            purine_effects.append(purine_effect)
+            
+            # 计算总susceptibility
+            susceptibilities.append(position_effect + purine_effect)
+        
+        # 创建图表
+        fig, ax = plt.subplots(figsize=(14, 10))
+        
+        # 序列可视化轨道
+        ax.plot([0, len(seq)], [0, 0], 'k-', linewidth=2)
+        
+        # 高亮显示A碱基位置
+        for i, pos in enumerate(a_positions):
+            # 计算颜色强度 - 归一化susceptibility
+            max_suscept = max(susceptibilities) if susceptibilities else 1
+            color_intensity = susceptibilities[i] / max_suscept if max_suscept > 0 else 0
+            
+            # 高亮显示A碱基
+            ax.scatter(pos, 0, s=120, c=[[1, 0, 0, color_intensity]], zorder=3)
+            
+            # 显示连续嘌呤区域
+            purine_length = purine_lengths[i]
+            left = max(0, pos - purine_length // 2)
+            ax.plot([left, left + purine_length], [0.2, 0.2], 'g-', linewidth=2, alpha=0.7)
+            
+            # 添加注释标签
+            ax.text(pos, 0.4 + (i % 3) * 0.2, 
+                   f"A{i+1}:\nPos={pos+1}\nLen={purine_length}\nScore={susceptibilities[i]:.2f}",
+                   ha='center', va='bottom',
+                   bbox=dict(boxstyle='round', fc='lightyellow', ec='orange', alpha=0.8))
+        
+        # 在底部添加序列碱基标签
+        for i, base in enumerate(seq):
+            color = 'red' if base == 'A' else ('green' if base == 'G' else 'blue')
+            ax.text(i, -0.3, base, ha='center', va='center', color=color)
+        
+        # 绘制susceptibility柱状图
+        ax2 = ax.twinx()
+        ax2.bar(a_positions, susceptibilities, alpha=0.5, width=0.8, color='lightcoral')
+        ax2.set_ylabel('Susceptibility Score')
+        
+        # 设置坐标轴
+        ax.set_xlim(-1, len(seq))
+        ax.set_ylim(-0.5, 1.5 + (len(a_positions) // 5) * 0.2)
+        ax.set_xlabel('Sequence Position (0-indexed)')
+        ax.set_title(title, fontsize=16)
+        
+        # 隐藏y轴刻度
+        ax.set_yticks([])
+        
+        # 添加图例
+        from matplotlib.patches import Patch
+        from matplotlib.lines import Line2D
+        
+        legend_elements = [
+            Patch(facecolor='red', alpha=0.5, label='A碱基'),
+            Line2D([0], [0], color='green', linewidth=2, label='连续嘌呤序列'),
+            Patch(facecolor='lightcoral', alpha=0.5, label='Susceptibility分数')
+        ]
+        ax.legend(handles=legend_elements, loc='upper right')
+        
+        # 添加总结信息
+        total_susceptibility = sum(susceptibilities)
+        plt.figtext(0.5, 0.01, 
+                   f"总A碱基Susceptibility分数: {total_susceptibility:.2f}\n"
+                   f"A碱基数量: {len(a_positions)}   平均分值: {total_susceptibility/len(a_positions):.2f} (每个A碱基)",
+                   ha='center', fontsize=12)
+        
+        plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+        
+        # 保存或显示图表
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        else:
+            plt.show()
+
+
 # 如果直接运行此脚本
 if __name__ == "__main__":
     # 示例DNA序列
@@ -773,4 +1135,56 @@ if __name__ == "__main__":
         print(f"预估自由能: {result['free_energy']:.2f} kcal/mol")
     
     # 可视化结构
-    analyzer.visualize_structure(test_seq, results) 
+    analyzer.visualize_structure(test_seq, results)
+    
+    print("\n\n")
+    print("=" * 50)
+    print("测试A碱基Susceptibility分析")
+    print("=" * 50)
+    
+    # 创建A碱基susceptibility分析器
+    a_analyzer = ASusceptibilityAnalyzer()
+    
+    # 测试序列
+    test_sequences = [
+        "CAGGGGAGT",   # 两个A，处于不同长度的嘌呤序列中
+        "ATTCCCGAGGAGTCAG",  # 多个A，位于不同位置
+        "GATCGATCGAAAAAATCGATCG"  # 连续多个A
+    ]
+    
+    for idx, seq in enumerate(test_sequences):
+        print(f"\n测试序列 {idx+1}: {seq}")
+        
+        # 计算A碱基susceptibility
+        score = a_analyzer.analyze_sequence(seq)
+        print(f"总A碱基susceptibility分数: {score:.2f}")
+        
+        # 查找所有A碱基位置
+        a_positions = [i for i, base in enumerate(seq) if base == 'A']
+        print(f"A碱基位置: {[pos+1 for pos in a_positions]}")
+        
+        # 计算每个A碱基的susceptibility
+        for pos in a_positions:
+            position_effect = math.log(pos + 1) if pos > 0 else 0
+            purine_length = a_analyzer._get_continuous_purine_length(seq, pos)
+            purine_effect = purine_length ** 2
+            a_susceptibility = position_effect + purine_effect
+            
+            print(f"  位置{pos+1}的A: 位置效应={position_effect:.2f}, 嘌呤长度={purine_length}, 嘌呤效应={purine_effect:.2f}, 总分={a_susceptibility:.2f}")
+    
+    # 可视化第二个序列
+    print("\n可视化序列分析结果...")
+    a_analyzer.visualize_sequence_susceptibility(test_sequences[1], title=f"序列'{test_sequences[1]}'的A碱基Susceptibility分析")
+    
+    # 测试两组序列比较
+    print("\n\n比较两组序列的A碱基susceptibility...")
+    high_efficiency = ["GATCAGTCGTAG", "ACGTGTGTATA", "GGGGAGGGGAC"]
+    low_efficiency = ["GAGAGAGAGAGG", "AAAAAAATAAA", "GATCAAAAAGA"]
+    
+    comparison = a_analyzer.compare_groups(high_efficiency, low_efficiency)
+    print(f"高效率组平均分: {comparison['high_efficiency']['mean']:.2f} ± {comparison['high_efficiency']['std']:.2f}")
+    print(f"低效率组平均分: {comparison['low_efficiency']['mean']:.2f} ± {comparison['low_efficiency']['std']:.2f}")
+    print(f"差异: {comparison['difference']['mean_diff']:.2f} ({comparison['difference']['percent_diff']:.1f}%)")
+    
+    # 绘制比较结果
+    a_analyzer.plot_comparison(comparison, title="高低效率序列的A碱基Susceptibility比较") 

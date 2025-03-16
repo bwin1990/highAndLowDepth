@@ -12,11 +12,12 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
-from dna_analyzer import DNAComplementAnalyzer
+from dna_analyzer import DNAComplementAnalyzer, ASusceptibilityAnalyzer
 from typing import List, Dict, Any
 import json
 import platform
 import matplotlib.font_manager as fm
+import math
 
 # 配置matplotlib支持中文
 if platform.system() == 'Windows':
@@ -95,6 +96,7 @@ class OligoAnalyzerGUI:
         
         # 创建分析器实例
         self.analyzer = DNAComplementAnalyzer()
+        self.a_analyzer = ASusceptibilityAnalyzer()
         
         # 创建主框架
         self.main_frame = ttk.Notebook(root)
@@ -109,6 +111,11 @@ class OligoAnalyzerGUI:
         self.compare_frame = ttk.Frame(self.main_frame)
         self.main_frame.add(self.compare_frame, text="组比较分析")
         self._setup_compare_analysis_tab()
+        
+        # 创建A碱基susceptibility分析标签页
+        self.a_suscept_frame = ttk.Frame(self.main_frame)
+        self.main_frame.add(self.a_suscept_frame, text="A碱基Susceptibility分析")
+        self._setup_a_suscept_tab()
         
         # 创建状态栏
         self.status_var = tk.StringVar()
@@ -286,6 +293,132 @@ class OligoAnalyzerGUI:
         # 初始化结果存储
         self.comparison_results = None
         
+    def _setup_a_suscept_tab(self):
+        """设置A碱基Susceptibility分析标签页"""
+        # 创建嵌套的标签页控件
+        a_suscept_notebook = ttk.Notebook(self.a_suscept_frame)
+        a_suscept_notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建单序列分析标签页
+        self.a_single_frame = ttk.Frame(a_suscept_notebook)
+        a_suscept_notebook.add(self.a_single_frame, text="单序列分析")
+        
+        # 创建批量比较标签页
+        self.a_compare_frame = ttk.Frame(a_suscept_notebook)
+        a_suscept_notebook.add(self.a_compare_frame, text="批量比较")
+        
+        # 设置单序列分析区域
+        self._setup_a_single_analysis()
+        
+        # 设置批量比较区域
+        self._setup_a_batch_comparison()
+    
+    def _setup_a_single_analysis(self):
+        """设置A碱基单序列分析区域"""
+        # 创建左侧输入区域
+        input_frame = ttk.LabelFrame(self.a_single_frame, text="输入")
+        input_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 序列输入
+        ttk.Label(input_frame, text="DNA序列:").pack(anchor=tk.W, padx=5, pady=2)
+        self.a_sequence_text = scrolledtext.ScrolledText(input_frame, height=10)
+        self.a_sequence_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 按钮区域
+        button_frame = ttk.Frame(input_frame)
+        button_frame.pack(fill=tk.X, padx=5, pady=10)
+        
+        ttk.Button(button_frame, text="分析序列", command=self._analyze_a_single_sequence).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="清除", command=lambda: self.a_sequence_text.delete(1.0, tk.END)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="保存结果", command=self._save_a_single_results).pack(side=tk.LEFT, padx=5)
+        
+        # 创建右侧结果区域
+        result_frame = ttk.LabelFrame(self.a_single_frame, text="结果")
+        result_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 结果文本区域
+        self.a_result_text = scrolledtext.ScrolledText(result_frame, height=10)
+        self.a_result_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 图表区域
+        self.a_figure_frame = ttk.Frame(result_frame)
+        self.a_figure_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 初始化结果存储
+        self.a_single_score = None
+        self.a_single_sequence = None
+        
+    def _setup_a_batch_comparison(self):
+        """设置A碱基批量比较区域"""
+        # 创建左侧输入区域
+        input_frame = ttk.LabelFrame(self.a_compare_frame, text="输入")
+        input_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 高效率组文件选择
+        file_frame1 = ttk.Frame(input_frame)
+        file_frame1.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(file_frame1, text="高效率组文件:").pack(side=tk.LEFT, padx=5)
+        self.a_high_eff_path_var = tk.StringVar()
+        ttk.Entry(file_frame1, textvariable=self.a_high_eff_path_var, width=30).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        ttk.Button(file_frame1, text="浏览...", command=lambda: self._browse_file(self.a_high_eff_path_var)).pack(side=tk.LEFT, padx=5)
+        
+        # 低效率组文件选择
+        file_frame2 = ttk.Frame(input_frame)
+        file_frame2.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(file_frame2, text="低效率组文件:").pack(side=tk.LEFT, padx=5)
+        self.a_low_eff_path_var = tk.StringVar()
+        ttk.Entry(file_frame2, textvariable=self.a_low_eff_path_var, width=30).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        ttk.Button(file_frame2, text="浏览...", command=lambda: self._browse_file(self.a_low_eff_path_var)).pack(side=tk.LEFT, padx=5)
+        
+        # 图表类型选择
+        params_frame = ttk.Frame(input_frame)
+        params_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(params_frame, text="图表类型:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.a_plot_type_var = tk.StringVar(value="boxviolin")
+        plot_type_combo = ttk.Combobox(params_frame, textvariable=self.a_plot_type_var, width=10)
+        plot_type_combo['values'] = ('boxviolin', 'histogram', 'scatter', 'boxplot', 'violinplot', 'swarmplot', 'stripplot')
+        plot_type_combo['state'] = 'readonly'
+        plot_type_combo.grid(row=0, column=1, padx=5, pady=2)
+        
+        # 添加图表类型说明
+        chart_frame = ttk.Frame(input_frame)
+        chart_frame.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(chart_frame, text="图表类型: boxviolin=箱线图+小提琴图, histogram=直方图, scatter=散点图").pack(anchor=tk.W)
+        
+        # 输出设置
+        output_frame = ttk.Frame(input_frame)
+        output_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(output_frame, text="结果输出文件:").pack(side=tk.LEFT, padx=5)
+        self.a_output_path_var = tk.StringVar()
+        ttk.Entry(output_frame, textvariable=self.a_output_path_var, width=30).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        ttk.Button(output_frame, text="浏览...", command=lambda: self._save_file_dialog(self.a_output_path_var)).pack(side=tk.LEFT, padx=5)
+        
+        # 按钮区域
+        button_frame = ttk.Frame(input_frame)
+        button_frame.pack(fill=tk.X, padx=5, pady=10)
+        
+        ttk.Button(button_frame, text="比较分析", command=self._compare_a_susceptibility).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="清除", command=self._clear_a_compare_inputs).pack(side=tk.LEFT, padx=5)
+        
+        # 创建右侧结果区域
+        result_frame = ttk.LabelFrame(self.a_compare_frame, text="结果")
+        result_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 结果文本区域
+        self.a_comp_result_text = scrolledtext.ScrolledText(result_frame, height=10)
+        self.a_comp_result_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 图表区域
+        self.a_comp_figure_frame = ttk.Frame(result_frame)
+        self.a_comp_figure_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 初始化结果存储
+        self.a_comparison_results = None
+    
     def _browse_file(self, path_var):
         """打开文件浏览对话框"""
         filetypes = [
@@ -559,6 +692,374 @@ class OligoAnalyzerGUI:
         plt.close('all')
             
         self.comparison_results = None
+        self.status_var.set("就绪")
+
+    def _analyze_a_single_sequence(self):
+        """分析单个序列的A碱基susceptibility"""
+        sequence = self.a_sequence_text.get(1.0, tk.END).strip()
+        if not sequence:
+            messagebox.showerror("错误", "请输入DNA序列")
+            return
+            
+        try:
+            self.status_var.set("正在分析序列中的A碱基susceptibility...")
+            self.root.update_idletasks()
+            
+            # 保存序列
+            self.a_single_sequence = sequence
+            
+            # 分析序列
+            self.a_single_score = self.a_analyzer.analyze_sequence(sequence)
+            
+            # 显示结果
+            self._display_a_single_results(sequence)
+            
+            self.status_var.set("A碱基susceptibility分析完成")
+        except Exception as e:
+            messagebox.showerror("错误", str(e))
+            self.status_var.set("分析失败")
+    
+    def _display_a_single_results(self, sequence):
+        """显示单序列A碱基susceptibility分析结果"""
+        # 清除结果区域
+        self.a_result_text.delete(1.0, tk.END)
+        
+        # 找到序列中所有A碱基的位置
+        a_positions = [i for i, base in enumerate(sequence) if base == 'A']
+        
+        # 显示总评分
+        self.a_result_text.insert(tk.END, f"总A碱基susceptibility评分: {self.a_single_score:.2f}\n")
+        self.a_result_text.insert(tk.END, f"序列中A碱基数量: {len(a_positions)}\n")
+        if len(a_positions) > 0:
+            self.a_result_text.insert(tk.END, f"平均每个A碱基分值: {self.a_single_score/len(a_positions):.2f}\n\n")
+        
+        # 显示详细结果
+        if a_positions:
+            self.a_result_text.insert(tk.END, "各A碱基susceptibility分析:\n")
+            self.a_result_text.insert(tk.END, f"{'位置':<6}{'位置效应':<10}{'嘌呤长度':<10}{'嘌呤效应':<10}{'总分':<10}\n")
+            self.a_result_text.insert(tk.END, "-" * 45 + "\n")
+            
+            for pos in a_positions:
+                position_effect = math.log(pos + 1) if pos > 0 else 0
+                purine_length = self.a_analyzer._get_continuous_purine_length(sequence, pos)
+                purine_effect = purine_length ** 2
+                total = position_effect + purine_effect
+                
+                self.a_result_text.insert(tk.END, f"{pos+1:<6}{position_effect:<10.2f}{purine_length:<10}{purine_effect:<10.2f}{total:<10.2f}\n")
+        
+        # 显示可视化
+        for widget in self.a_figure_frame.winfo_children():
+            widget.destroy()
+            
+        # 关闭之前的图形
+        plt.close('all')
+        
+        fig = plt.figure(figsize=(6, 4))
+        self.a_analyzer.visualize_sequence_susceptibility(sequence, title=f"序列的A碱基Susceptibility分析")
+        
+        canvas = FigureCanvasTkAgg(plt.gcf(), master=self.a_figure_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    
+    def _save_a_single_results(self):
+        """保存单序列A碱基susceptibility分析结果"""
+        if self.a_single_score is None or self.a_single_sequence is None:
+            messagebox.showerror("错误", "没有可保存的结果")
+            return
+            
+        filetypes = [
+            ("文本文件", "*.txt"),
+            ("CSV文件", "*.csv"),
+            ("所有文件", "*.*")
+        ]
+        filename = filedialog.asksaveasfilename(filetypes=filetypes, defaultextension=".txt")
+        if not filename:
+            return
+            
+        try:
+            # 准备数据
+            sequence = self.a_single_sequence
+            a_positions = [i for i, base in enumerate(sequence) if base == 'A']
+            details = []
+            
+            for pos in a_positions:
+                position_effect = math.log(pos + 1) if pos > 0 else 0
+                purine_length = self.a_analyzer._get_continuous_purine_length(sequence, pos)
+                purine_effect = purine_length ** 2
+                total = position_effect + purine_effect
+                
+                details.append({
+                    'position': pos + 1,
+                    'position_effect': position_effect,
+                    'purine_length': purine_length,
+                    'purine_effect': purine_effect,
+                    'score': total
+                })
+            
+            # 保存结果
+            ext = os.path.splitext(filename)[1].lower()
+            
+            if ext == '.csv':
+                # 保存为CSV
+                df = pd.DataFrame(details)
+                df.to_csv(filename, index=False)
+            else:
+                # 保存为文本
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(f"A碱基Susceptibility分析结果\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    f.write(f"总A碱基susceptibility评分: {self.a_single_score:.2f}\n")
+                    f.write(f"序列: {sequence}\n")
+                    f.write(f"序列长度: {len(sequence)}bp\n")
+                    f.write(f"序列中A碱基数量: {len(a_positions)}\n")
+                    if len(a_positions) > 0:
+                        f.write(f"平均每个A碱基分值: {self.a_single_score/len(a_positions):.2f}\n\n")
+                    
+                    f.write("各A碱基susceptibility分析:\n")
+                    f.write(f"{'位置':<6}{'位置效应':<10}{'嘌呤长度':<10}{'嘌呤效应':<10}{'总分':<10}\n")
+                    f.write("-" * 45 + "\n")
+                    
+                    for detail in details:
+                        f.write(f"{detail['position']:<6}{detail['position_effect']:<10.2f}{detail['purine_length']:<10}"
+                               f"{detail['purine_effect']:<10.2f}{detail['score']:<10.2f}\n")
+            
+            # 保存图像
+            img_filename = os.path.splitext(filename)[0] + ".png"
+            plt.figure(figsize=(8, 6))
+            self.a_analyzer.visualize_sequence_susceptibility(sequence, 
+                                                         title=f"序列的A碱基Susceptibility分析",
+                                                         save_path=img_filename)
+            
+            self.status_var.set(f"结果已保存至 {filename}")
+            messagebox.showinfo("保存成功", f"结果已保存至:\n{filename}\n图像已保存至:\n{img_filename}")
+        except Exception as e:
+            messagebox.showerror("保存失败", str(e))
+    
+    def _compare_a_susceptibility(self):
+        """比较两组序列的A碱基susceptibility"""
+        high_eff_file = self.a_high_eff_path_var.get()
+        low_eff_file = self.a_low_eff_path_var.get()
+        
+        if not high_eff_file or not low_eff_file:
+            messagebox.showerror("错误", "请选择高效率和低效率序列文件")
+            return
+            
+        if not os.path.exists(high_eff_file) or not os.path.exists(low_eff_file):
+            messagebox.showerror("错误", "文件不存在")
+            return
+            
+        try:
+            self.status_var.set("正在读取序列...")
+            self.root.update_idletasks()
+            
+            # 读取序列
+            high_eff_seqs = read_sequences_from_file(high_eff_file)
+            low_eff_seqs = read_sequences_from_file(low_eff_file)
+            
+            if not high_eff_seqs or not low_eff_seqs:
+                messagebox.showerror("错误", "无法从文件中读取序列")
+                self.status_var.set("读取序列失败")
+                return
+                
+            self.status_var.set(f"正在分析 {len(high_eff_seqs)} 条高效率序列和 {len(low_eff_seqs)} 条低效率序列的A碱基susceptibility...")
+            self.root.update_idletasks()
+            
+            # 比较两组
+            self.a_comparison_results = self.a_analyzer.compare_groups(high_eff_seqs, low_eff_seqs)
+            
+            # 显示结果
+            self._display_a_comparison_results()
+            
+            # 保存结果
+            output_file = self.a_output_path_var.get()
+            if output_file:
+                self._save_a_comparison_results(output_file)
+                self.status_var.set(f"结果已保存至 {output_file}")
+            else:
+                self.status_var.set("分析完成")
+                
+        except Exception as e:
+            messagebox.showerror("错误", str(e))
+            self.status_var.set("分析失败")
+    
+    def _display_a_comparison_results(self):
+        """显示A碱基susceptibility组比较分析结果"""
+        # 清除结果区域
+        self.a_comp_result_text.delete(1.0, tk.END)
+        
+        # 显示结果摘要
+        self.a_comp_result_text.insert(tk.END, "A碱基Susceptibility分析结果:\n")
+        self.a_comp_result_text.insert(tk.END, f"高效率组平均分值: {self.a_comparison_results['high_efficiency']['mean']:.2f} ± {self.a_comparison_results['high_efficiency']['std']:.2f}\n")
+        self.a_comp_result_text.insert(tk.END, f"低效率组平均分值: {self.a_comparison_results['low_efficiency']['mean']:.2f} ± {self.a_comparison_results['low_efficiency']['std']:.2f}\n")
+        self.a_comp_result_text.insert(tk.END, f"分值差异: {self.a_comparison_results['difference']['mean_diff']:.2f} ({self.a_comparison_results['difference']['percent_diff']:.1f}%)\n\n")
+        
+        self.a_comp_result_text.insert(tk.END, f"图表类型: {self.a_plot_type_var.get()}\n\n")
+        
+        self.a_comp_result_text.insert(tk.END, f"高效率组样本数量: {len(self.a_comparison_results['high_efficiency']['scores'])}\n")
+        self.a_comp_result_text.insert(tk.END, f"低效率组样本数量: {len(self.a_comparison_results['low_efficiency']['scores'])}\n\n")
+        
+        self.a_comp_result_text.insert(tk.END, "高效率组分值: " + ", ".join([f"{score:.2f}" for score in self.a_comparison_results['high_efficiency']['scores']]) + "\n\n")
+        self.a_comp_result_text.insert(tk.END, "低效率组分值: " + ", ".join([f"{score:.2f}" for score in self.a_comparison_results['low_efficiency']['scores']]) + "\n")
+        
+        # 显示可视化
+        for widget in self.a_comp_figure_frame.winfo_children():
+            widget.destroy()
+            
+        # 关闭之前的图形
+        plt.close('all')
+        
+        # 获取选择的图表类型
+        plot_type = self.a_plot_type_var.get()
+        
+        # 绘制比较图表
+        plt.figure(figsize=(10, 6))
+        self.a_analyzer.plot_comparison(self.a_comparison_results, 
+                                    title="高低效率序列组的A碱基Susceptibility比较",
+                                    plot_type=plot_type)
+        
+        # 嵌入图表
+        canvas = FigureCanvasTkAgg(plt.gcf(), master=self.a_comp_figure_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    
+    def _save_a_comparison_results(self, file_path):
+        """保存A碱基susceptibility比较结果"""
+        if not self.a_comparison_results:
+            return
+            
+        try:
+            # 检查文件扩展名
+            ext = os.path.splitext(file_path)[1].lower()
+            
+            if ext == '.json':
+                # 保存为JSON
+                results_json = {
+                    'high_efficiency': {
+                        'scores': [float(x) for x in self.a_comparison_results['high_efficiency']['scores']],
+                        'mean': float(self.a_comparison_results['high_efficiency']['mean']),
+                        'std': float(self.a_comparison_results['high_efficiency']['std'])
+                    },
+                    'low_efficiency': {
+                        'scores': [float(x) for x in self.a_comparison_results['low_efficiency']['scores']],
+                        'mean': float(self.a_comparison_results['low_efficiency']['mean']),
+                        'std': float(self.a_comparison_results['low_efficiency']['std'])
+                    },
+                    'difference': {
+                        'mean_diff': float(self.a_comparison_results['difference']['mean_diff']),
+                        'percent_diff': float(self.a_comparison_results['difference']['percent_diff'])
+                    }
+                }
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(results_json, f, indent=2, ensure_ascii=False)
+            
+            elif ext == '.csv':
+                # 创建CSV报告
+                rows = []
+                
+                # 高效率组
+                for i, score in enumerate(self.a_comparison_results['high_efficiency']['scores']):
+                    rows.append({
+                        'Group': 'High Efficiency Oligo',
+                        'Index': i + 1,
+                        'A_Susceptibility_Score': score,
+                        'Mean_Group_Score': self.a_comparison_results['high_efficiency']['mean'],
+                        'Std_Group_Score': self.a_comparison_results['high_efficiency']['std']
+                    })
+                
+                # 低效率组
+                for i, score in enumerate(self.a_comparison_results['low_efficiency']['scores']):
+                    rows.append({
+                        'Group': 'Low Efficiency Oligo',
+                        'Index': i + 1,
+                        'A_Susceptibility_Score': score,
+                        'Mean_Group_Score': self.a_comparison_results['low_efficiency']['mean'],
+                        'Std_Group_Score': self.a_comparison_results['low_efficiency']['std']
+                    })
+                
+                # 创建DataFrame并保存
+                df = pd.DataFrame(rows)
+                df.to_csv(file_path, index=False, encoding='utf-8')
+            
+            elif ext == '.xlsx':
+                # 创建Excel报告
+                writer = pd.ExcelWriter(file_path, engine='openpyxl')
+                
+                # 摘要表
+                summary_data = {
+                    'Group': ['High Efficiency Oligos', 'Low Efficiency Oligos'],
+                    'Mean A Susceptibility Score': [self.a_comparison_results['high_efficiency']['mean'], 
+                                                  self.a_comparison_results['low_efficiency']['mean']],
+                    'Std Dev': [self.a_comparison_results['high_efficiency']['std'], 
+                               self.a_comparison_results['low_efficiency']['std']],
+                    'Sample Size': [len(self.a_comparison_results['high_efficiency']['scores']), 
+                                   len(self.a_comparison_results['low_efficiency']['scores'])]
+                }
+                summary_df = pd.DataFrame(summary_data)
+                summary_df.to_excel(writer, sheet_name='Summary', index=False)
+                
+                # 详细分数表
+                scores_data = {
+                    'High Efficiency Oligo Scores': pd.Series(self.a_comparison_results['high_efficiency']['scores']),
+                    'Low Efficiency Oligo Scores': pd.Series(self.a_comparison_results['low_efficiency']['scores'])
+                }
+                scores_df = pd.DataFrame(scores_data)
+                scores_df.to_excel(writer, sheet_name='Scores', index=True)
+                
+                # 保存
+                writer.save()
+            
+            else:
+                # 默认保存为文本
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(f"A碱基Susceptibility分析比较结果\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    f.write("高效率组:\n")
+                    f.write(f"  样本数量: {len(self.a_comparison_results['high_efficiency']['scores'])}\n")
+                    f.write(f"  平均分值: {self.a_comparison_results['high_efficiency']['mean']:.2f} ± {self.a_comparison_results['high_efficiency']['std']:.2f}\n\n")
+                    
+                    f.write("低效率组:\n")
+                    f.write(f"  样本数量: {len(self.a_comparison_results['low_efficiency']['scores'])}\n")
+                    f.write(f"  平均分值: {self.a_comparison_results['low_efficiency']['mean']:.2f} ± {self.a_comparison_results['low_efficiency']['std']:.2f}\n\n")
+                    
+                    f.write("差异分析:\n")
+                    f.write(f"  分值差异: {self.a_comparison_results['difference']['mean_diff']:.2f}\n")
+                    f.write(f"  差异百分比: {self.a_comparison_results['difference']['percent_diff']:.2f}%\n\n")
+                    
+                    f.write("详细分值:\n")
+                    f.write("  高效率组: " + ", ".join([f"{score:.2f}" for score in self.a_comparison_results['high_efficiency']['scores']]) + "\n")
+                    f.write("  低效率组: " + ", ".join([f"{score:.2f}" for score in self.a_comparison_results['low_efficiency']['scores']]) + "\n")
+            
+            # 保存图像
+            img_filename = os.path.splitext(file_path)[0] + ".png"
+            plt.figure(figsize=(10, 6))
+            self.a_analyzer.plot_comparison(self.a_comparison_results, 
+                                        title="高低效率序列组的A碱基Susceptibility比较",
+                                        plot_type=self.a_plot_type_var.get(),
+                                        save_path=img_filename)
+            
+            messagebox.showinfo("保存成功", f"结果已保存至:\n{file_path}\n图像已保存至:\n{img_filename}")
+            
+        except Exception as e:
+            messagebox.showerror("保存失败", str(e))
+    
+    def _clear_a_compare_inputs(self):
+        """清除A碱基susceptibility比较输入"""
+        self.a_high_eff_path_var.set("")
+        self.a_low_eff_path_var.set("")
+        self.a_output_path_var.set("")
+        self.a_comp_result_text.delete(1.0, tk.END)
+        
+        # 清除图形区域
+        for widget in self.a_comp_figure_frame.winfo_children():
+            widget.destroy()
+            
+        # 关闭所有图形
+        plt.close('all')
+            
+        self.a_comparison_results = None
         self.status_var.set("就绪")
 
 
